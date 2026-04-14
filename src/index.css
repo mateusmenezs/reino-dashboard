@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+:root {
+  --navy: #040D1A;
+  --gold: #C9A84C;
+  --gold-l: #F5EDD4;
+  --dark: #0D1B2A;
+  --mid: #1A2D45;
+  --white: #F5F5F0;
+  --green: #1E8449;
+  --red: #C0392B;
+  --gray: #888888;
+}
+
+@theme {
+  --color-navy: #040D1A;
+  --color-gold: #C9A84C;
+  --color-gold-l: #F5EDD4;
+  --color-dark: #0D1B2A;
+  --color-mid: #1A2D45;
+  --color-reino-white: #F5F5F0;
+  --color-reino-green: #1E8449;
+  --color-reino-red: #C0392B;
+  --color-reino-gray: #888888;
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--navy);
+  color: var(--white);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+.badge-final   { background: rgba(30,132,73,0.15);  color: #4ecb86; border: 1px solid rgba(30,132,73,0.4); }
+.badge-parcial { background: rgba(201,168,76,0.15); color: #e6c670; border: 1px solid rgba(201,168,76,0.4); }
+.badge-andamento { background: rgba(52,152,219,0.15); color: #5fb4e8; border: 1px solid rgba(52,152,219,0.4); animation: pulse 1.8s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+
+.tab-btn { padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 14px; color: #a8b3c4; transition: all .15s; }
+.tab-btn:hover { color: var(--gold); background: rgba(201,168,76,0.08); }
+.tab-btn.active { background: var(--gold); color: var(--navy); }
+
+.card { background: var(--dark); border: 1px solid rgba(201,168,76,0.12); border-radius: 12px; padding: 18px; }
+.card-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #a8b3c4; margin-bottom: 6px; }
+.card-value { font-size: 24px; font-weight: 700; color: var(--gold); }
+
+table.reino { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.reino th { text-align: left; padding: 10px 12px; font-weight: 600; color: var(--gold); border-bottom: 1px solid rgba(201,168,76,0.2); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+table.reino td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+table.reino tr:hover td { background: rgba(201,168,76,0.03); }
+.cell-best { color: #4ecb86; font-weight: 700; }
+.cell-worst { color: #e87569; font-weight: 700; }
+.cell-null { color: #555; }
+
+input, select {
+  background: var(--mid);
+  border: 1px solid rgba(201,168,76,0.25);
+  color: var(--white);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+}
+input:focus, select:focus { border-color: var(--gold); }
