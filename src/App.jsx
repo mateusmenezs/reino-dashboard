@@ -7,6 +7,7 @@ const TABS = [
   { id: 'resumo', label: 'Resumo' },
   { id: 'comparativo', label: 'Comparativo' },
   { id: 'funil', label: 'Funil' },
+  { id: 'insights', label: 'Insights' },
   { id: 'projecao', label: 'Projeção' },
 ]
 
@@ -34,6 +35,7 @@ export default function App() {
         {tab === 'resumo' && <TabResumo />}
         {tab === 'comparativo' && <TabComparativo />}
         {tab === 'funil' && <TabFunil />}
+        {tab === 'insights' && <TabInsights />}
         {tab === 'projecao' && <TabProjecao />}
       </main>
 
@@ -333,7 +335,226 @@ function TabFunil() {
   )
 }
 
-/* ---------- TAB 4 · PROJEÇÃO ---------- */
+/* ---------- TAB 4 · INSIGHTS ---------- */
+function TabInsights() {
+  const [id, setId] = useState(EVENTS.find(e => e.status !== 'final')?.id || EVENTS[EVENTS.length - 1].id)
+  const ev = EVENTS.find(e => e.id === id)
+  const m = calcMetrics(ev)
+
+  // Médias entre eventos finais (benchmark histórico)
+  const finals = EVENTS.filter(e => e.status === 'final')
+  const avg = (arr) => arr.filter(v => v != null).length
+    ? arr.filter(v => v != null).reduce((s,v) => s+v, 0) / arr.filter(v => v != null).length
+    : null
+  const finalMetrics = finals.map(calcMetrics)
+  const bench = {
+    cpl:              avg(finals.map(e => e.cpl)),
+    custoIc:          avg(finals.map(e => e.custoIc)),
+    ctr:              avg(finals.map(e => e.ctr)),
+    cpm:              avg(finals.map(e => e.cpm)),
+    custoIngresso:    avg(finalMetrics.map(x => x.custoIngresso)),
+    taxaLeadIc:       avg(finalMetrics.map(x => x.taxaLeadIc)),
+    taxaIcIngresso:   avg(finalMetrics.map(x => x.taxaIcIngresso)),
+    taxaCliqueVP:     avg(finalMetrics.map(x => x.taxaCliqueVP)),
+    taxaVPLead:       avg(finalMetrics.map(x => x.taxaVPLead)),
+    taxaLeadIngresso: avg(finalMetrics.map(x => x.taxaLeadIngresso)),
+  }
+
+  const pctOrNull = (a, b) => (a != null && b && b > 0) ? (a / b) * 100 : null
+
+  // MÉTRICAS RELACIONAIS
+  const relacionais = [
+    { label: 'Clique → Lead',     value: pctOrNull(ev.leads, ev.cliques),    desc: 'Do clique no anúncio até virar lead' },
+    { label: 'Clique → IC',       value: pctOrNull(ev.ic, ev.cliques),       desc: 'Do clique até iniciar checkout' },
+    { label: 'Clique → Ingresso', value: pctOrNull(ev.ingressos, ev.cliques),desc: 'Do clique até comprar ingresso' },
+    { label: 'Lead → IC',         value: m.taxaLeadIc,                       desc: 'Do lead até iniciar checkout' },
+    { label: 'Lead → Ingresso',   value: m.taxaLeadIngresso,                 desc: 'Do lead até comprar ingresso' },
+    { label: 'IC → Ingresso',     value: m.taxaIcIngresso,                   desc: 'Do checkout até fechar compra' },
+  ]
+
+  // COMPARATIVO vs MÉDIA histórica
+  const compareRows = [
+    { label: 'CPM',                 cur: ev.cpm,     bench: bench.cpm,     fmt: brlCents, lower: true },
+    { label: 'CTR',                 cur: ev.ctr,     bench: bench.ctr,     fmt: (v) => v != null ? `${v.toFixed(2)}%` : '—', lower: false },
+    { label: 'CPL',                 cur: ev.cpl,     bench: bench.cpl,     fmt: brlCents, lower: true },
+    { label: 'Custo IC',            cur: ev.custoIc, bench: bench.custoIc, fmt: brlCents, lower: true },
+    { label: 'Custo / ingresso',    cur: m.custoIngresso, bench: bench.custoIngresso, fmt: brlCents, lower: true },
+    { label: 'Taxa Clique→VP',      cur: m.taxaCliqueVP, bench: bench.taxaCliqueVP, fmt: pct, lower: false },
+    { label: 'Taxa VP→Lead',        cur: m.taxaVPLead,   bench: bench.taxaVPLead,   fmt: pct, lower: false },
+    { label: 'Taxa Lead→IC',        cur: m.taxaLeadIc,   bench: bench.taxaLeadIc,   fmt: pct, lower: false },
+    { label: 'Taxa IC→Ingresso',    cur: m.taxaIcIngresso, bench: bench.taxaIcIngresso, fmt: pct, lower: false },
+    { label: 'Taxa Lead→Ingresso',  cur: m.taxaLeadIngresso, bench: bench.taxaLeadIngresso, fmt: pct, lower: false },
+  ]
+
+  // SUGESTÕES AUTOMÁTICAS (regras)
+  const tips = []
+  const pctDiff = (cur, ref) => (cur != null && ref && ref > 0) ? ((cur - ref) / ref) * 100 : null
+
+  compareRows.forEach(r => {
+    const d = pctDiff(r.cur, r.bench)
+    if (d == null) return
+    const worse = r.lower ? d > 15 : d < -15
+    const better = r.lower ? d < -15 : d > 15
+    if (worse) {
+      if (r.label === 'CPM') tips.push({ tipo: 'ruim', txt: `CPM está ${d.toFixed(0)}% acima da média — público muito disputado. Teste criativos novos ou segmentação mais ampla.` })
+      if (r.label === 'CTR') tips.push({ tipo: 'ruim', txt: `CTR ${Math.abs(d).toFixed(0)}% abaixo da média — criativo não está atraindo clique. Troque imagem/hook do anúncio.` })
+      if (r.label === 'CPL') tips.push({ tipo: 'ruim', txt: `CPL ${d.toFixed(0)}% acima da média — landing page ou oferta do lead magnet está fraca. Teste nova headline.` })
+      if (r.label === 'Custo IC') tips.push({ tipo: 'ruim', txt: `Custo por IC ${d.toFixed(0)}% acima da média — nurturing até checkout precisa melhorar (emails/WhatsApp).` })
+      if (r.label === 'Custo / ingresso') tips.push({ tipo: 'ruim', txt: `Custo por ingresso ${d.toFixed(0)}% acima da média — revise funil de checkout e urgência na página.` })
+      if (r.label.startsWith('Taxa')) tips.push({ tipo: 'ruim', txt: `${r.label} ${Math.abs(d).toFixed(0)}% abaixo da média — gargalo nessa etapa, investigar.` })
+    }
+    if (better) {
+      if (r.label === 'CPL' || r.label === 'Custo IC' || r.label === 'Custo / ingresso' || r.label === 'CPM')
+        tips.push({ tipo: 'bom', txt: `${r.label} ${Math.abs(d).toFixed(0)}% melhor que a média — escale o investimento.` })
+      if (r.label === 'CTR' || r.label.startsWith('Taxa'))
+        tips.push({ tipo: 'bom', txt: `${r.label} ${d.toFixed(0)}% acima da média — mantenha o padrão.` })
+    }
+  })
+  if (!tips.length) tips.push({ tipo: 'neutro', txt: 'Métricas dentro do padrão histórico — sem gargalos evidentes.' })
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="text-sm text-[#a8b3c4]">Evento analisado:</label>
+        <select value={id} onChange={e => setId(e.target.value)}>
+          {EVENTS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
+        </select>
+        <StatusBadge status={ev.status} />
+      </div>
+
+      {/* MÉTRICAS RELACIONAIS */}
+      <section>
+        <div className="text-xs uppercase tracking-wider text-[color:var(--gold)] mb-2">📐 Métricas relacionais</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {relacionais.map(r => (
+            <div key={r.label} className="card">
+              <div className="card-label">{r.label}</div>
+              <div className="card-value">{pct(r.value)}</div>
+              <div className="text-xs text-[#a8b3c4] mt-1">{r.desc}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* COMPARATIVO vs MÉDIA */}
+      <section>
+        <div className="text-xs uppercase tracking-wider text-[color:var(--gold)] mb-2">⚖️ Comparativo vs média histórica</div>
+        <div className="card !p-0 overflow-x-auto">
+          <table className="reino">
+            <thead>
+              <tr>
+                <th>Métrica</th>
+                <th className="text-right">Evento atual</th>
+                <th className="text-right">Média histórica</th>
+                <th className="text-right">Variação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {compareRows.map(r => {
+                const d = pctDiff(r.cur, r.bench)
+                const good = d != null && (r.lower ? d < 0 : d > 0)
+                const bad  = d != null && (r.lower ? d > 0 : d < 0)
+                return (
+                  <tr key={r.label}>
+                    <td>{r.label}</td>
+                    <td className="text-right tabular-nums">{r.fmt(r.cur)}</td>
+                    <td className="text-right tabular-nums text-[#a8b3c4]">{r.fmt(r.bench)}</td>
+                    <td className={`text-right tabular-nums ${good ? 'cell-best' : bad ? 'cell-worst' : 'cell-null'}`}>
+                      {d != null ? `${d > 0 ? '+' : ''}${d.toFixed(0)}%` : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* SUGESTÕES */}
+      <section>
+        <div className="text-xs uppercase tracking-wider text-[color:var(--gold)] mb-2">💡 Sugestões de melhoria</div>
+        <div className="space-y-2">
+          {tips.map((t, i) => (
+            <div key={i} className={`card !py-3 flex items-start gap-3 ${
+              t.tipo === 'ruim' ? 'border-l-4 !border-l-[color:var(--reino-red)]' :
+              t.tipo === 'bom'  ? 'border-l-4 !border-l-[color:var(--reino-green)]' :
+              'border-l-4 !border-l-[color:var(--gold)]'
+            }`}>
+              <div className="text-lg">
+                {t.tipo === 'ruim' ? '⚠️' : t.tipo === 'bom' ? '✅' : 'ℹ️'}
+              </div>
+              <div className="text-sm leading-relaxed">{t.txt}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* PROJEÇÃO DE GASTO DIÁRIO */}
+      <TabGastoDiario ev={ev} bench={bench} m={m} />
+    </div>
+  )
+}
+
+function TabGastoDiario({ ev, bench, m }) {
+  const [meta, setMeta] = useState(30)
+  const [diasRestantes, setDiasRestantes] = useState(30)
+
+  // Custo por ingresso do evento atual (se houver) senão benchmark
+  const custoIng = m.custoIngresso || bench.custoIngresso
+  const ingressosAtuais = ev.ingressos || 0
+  const faltam = Math.max(0, meta - ingressosAtuais)
+  const investNecessario = (custoIng && faltam > 0) ? faltam * custoIng : 0
+  const gastoDiario = (investNecessario && diasRestantes > 0) ? investNecessario / diasRestantes : null
+  const gastoAtual = ev.investimento || 0
+  const totalProjetado = gastoAtual + investNecessario
+
+  return (
+    <section>
+      <div className="text-xs uppercase tracking-wider text-[color:var(--gold)] mb-2">🎯 Quanto gastar por dia pra bater a meta</div>
+      <div className="grid md:grid-cols-2 gap-3 mb-3">
+        <div className="card">
+          <div className="card-label">Meta de ingressos</div>
+          <input type="number" value={meta} onChange={e => setMeta(Number(e.target.value) || 0)} className="w-full mt-2" />
+        </div>
+        <div className="card">
+          <div className="card-label">Dias restantes até o evento</div>
+          <input type="number" value={diasRestantes} onChange={e => setDiasRestantes(Number(e.target.value) || 0)} className="w-full mt-2" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="card">
+          <div className="card-label">Ingressos já vendidos</div>
+          <div className="card-value">{num(ingressosAtuais)}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Faltam vender</div>
+          <div className="card-value">{num(faltam)}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Custo / ingresso usado</div>
+          <div className="card-value">{brlCents(custoIng)}</div>
+          <div className="text-xs text-[#a8b3c4] mt-1">{m.custoIngresso ? 'Do evento atual' : 'Média histórica'}</div>
+        </div>
+        <div className="card">
+          <div className="card-label">Investimento necessário</div>
+          <div className="card-value">{brl(investNecessario)}</div>
+        </div>
+        <div className="card md:col-span-2">
+          <div className="card-label">📅 Gasto diário sugerido</div>
+          <div className="card-value text-2xl">{brl(gastoDiario)}</div>
+          <div className="text-xs text-[#a8b3c4] mt-1">Por dia, durante os {diasRestantes} dias restantes</div>
+        </div>
+        <div className="card md:col-span-2">
+          <div className="card-label">Investimento total projetado</div>
+          <div className="card-value">{brl(totalProjetado)}</div>
+          <div className="text-xs text-[#a8b3c4] mt-1">Atual ({brl(gastoAtual)}) + adicional ({brl(investNecessario)})</div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ---------- TAB 5 · PROJEÇÃO ---------- */
 function TabProjecao() {
   const finals = EVENTS.filter(e => e.status === 'final')
   const [refId, setRefId] = useState(finals[0]?.id || EVENTS[0].id)
