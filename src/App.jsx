@@ -414,8 +414,45 @@ function TabInsights() {
 
   return (
     <div className="space-y-6">
+      {/* TAXAS DE CONVERSÃO — TODOS OS EVENTOS */}
+      <section>
+        <div className="text-xs uppercase tracking-wider text-[color:var(--gold)] mb-2">🔁 Taxas de conversão — todos os eventos</div>
+        <div className="card !p-0 overflow-x-auto">
+          <table className="reino">
+            <thead>
+              <tr>
+                <th>Evento</th>
+                <th className="text-right">Página → Lead</th>
+                <th className="text-right">Lead → Checkout</th>
+                <th className="text-right">Checkout → Venda</th>
+                <th className="text-right">Página → Venda</th>
+              </tr>
+            </thead>
+            <tbody>
+              {EVENTS.map(e => {
+                const mm = calcMetrics(e)
+                const pgVenda = (e.ingressos != null && e.viewPage && e.viewPage > 0)
+                  ? (e.ingressos / e.viewPage) * 100 : null
+                return (
+                  <tr key={e.id}>
+                    <td className="font-medium">{e.label}</td>
+                    <td className="text-right tabular-nums">{pct(mm.taxaVPLead)}</td>
+                    <td className="text-right tabular-nums">{pct(mm.taxaLeadIc)}</td>
+                    <td className="text-right tabular-nums">{pct(mm.taxaIcIngresso)}</td>
+                    <td className="text-right tabular-nums text-[color:var(--gold)] font-semibold">{pct(pgVenda)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="text-xs text-[#a8b3c4] mt-2">
+          ⚠️ Obs.: em MR65 parte dos leads vem de form instantâneo (não passa por página), então a taxa Página→Lead fica subestimada.
+        </div>
+      </section>
+
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm text-[#a8b3c4]">Evento analisado:</label>
+        <label className="text-sm text-[#a8b3c4]">Análise individual — evento:</label>
         <select value={id} onChange={e => setId(e.target.value)}>
           {EVENTS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
         </select>
