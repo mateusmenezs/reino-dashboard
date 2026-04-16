@@ -119,7 +119,7 @@ export const EVENTS = [
     custoIc: 214.54,
     ingressos: 8,
     vips: 3,
-    fatIngressos: 1326.40,
+    fatIngressos: 1723.29,
     mentorias: null,
     receitaImediata: null,
     receitaContrato: null,
