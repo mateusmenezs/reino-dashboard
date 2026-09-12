@@ -16,30 +16,64 @@
  * 4. Campos de ramificação não respondidos vêm vazios: se `persona.tipo_cliente`
  *    é `"pj"`, todo o bloco `persona.pf` vem com strings vazias (e vice-versa).
  *    Se `tipo_cliente` é `"ambos"`, os dois blocos vêm preenchidos.
- * 5. "Escapes" são confissões de ausência, não erro de preenchimento:
- *    - `lastro.melhor_resultado_terceiros_ausente: true` -> ainda não gerou
- *      resultado para terceiros; o texto correspondente virá "".
- *    - `lastro.narrativa.repeticao_ausente: true` -> ainda não repetiu o processo.
- *    - `metodo.passos_delegados_ia: true` -> o participante pediu que a IA
- *      organize os passos; `metodo.passos` virá [].
+ * 5. "Escapes" são confissões de ausência, não erro de preenchimento. Com a
+ *    escape marcada, o TEXTO CORRESPONDENTE VAI SEMPRE VAZIO — mesmo que a
+ *    pessoa tivesse escrito algo antes de marcar (o texto continua guardado no
+ *    aparelho dela para não se perder, mas não viaja: "ainda não gerei
+ *    resultado para terceiros" + depoimento ao lado seria contradição).
+ *    - `lastro.melhor_resultado_terceiros_ausente: true`
+ *      -> `lastro.melhor_resultado_terceiros` = "".
+ *    - `lastro.narrativa.repeticao_ausente: true`
+ *      -> `lastro.narrativa.repeticao` = "".
+ *    - `metodo.passos_delegados_ia: true` -> `metodo.passos` = [].
+ *    - `metodo.tem_nome: false` -> `metodo.nome` = "".
+ *    - `entrega.tem_niveis` != "sim" -> `entrega.niveis_descricao` = "".
  * 6. `progress.ai_delegations` é a lista de pontos onde o participante pediu
  *    explicitamente recomendação da IA (ou declarou "ainda não sei"). É o mapa
  *    do que a IA precisa PROPOR em vez de apenas organizar. Valores possíveis:
- *    "persona.escolha", "persona.tipo_cliente", "transformacao.prazo",
- *    "metodo.passos", "metodo.nome", "produto.modelo", "produto.duracao",
+ *    "persona.escolha", "persona.tipo_cliente", "persona.faixa_renda",
+ *    "persona.faixa_faturamento", "transformacao.prazo", "metodo.passos",
+ *    "metodo.nome", "produto.modelo", "produto.duracao",
  *    "produto.carga_horaria", "entrega.niveis", "entrega.hot_seat",
  *    "entrega.suporte".
  * 7. `persona.publicos` traz apenas os públicos com algum conteúdo. Cada um tem
- *    3 notas de 1 a 5 e `score_total` (0..15). `persona.maior_score` é o id do
- *    público com maior `score_total` — é um indicador de potencial, NÃO
- *    necessariamente a persona escolhida (essa é `persona.publico_escolhido`).
- * 8. `progress.total_questions` é o total de perguntas QUE SE APLICAVAM a este
+ *    3 notas de 1 a 5, `score_total` (0..15) e `preenchido` (descrição + notas).
+ *    - `persona.maior_score` é o id do público PREENCHIDO com maior
+ *      `score_total` — indicador de potencial, NÃO necessariamente a persona
+ *      escolhida (essa é `persona.publico_escolhido`). Público sem descrição
+ *      nunca ganha esse selo, mesmo com notas altas.
+ *    - `persona.maior_score_empate` lista TODOS os ids empatados no topo quando
+ *      há empate (ex.: ["A","B","C"]); vem [] quando existe um líder único.
+ *      Com empate, `maior_score` traz o primeiro na ordem A > B > C só para não
+ *      quebrar quem já lê o campo — a decisão real é da IA.
+ * 8. A escolha do público é SEMPRE coerente com o que foi descrito:
+ *    - `persona.publico_escolhido` só pode ser um id com descrição, ou "".
+ *    - `persona.publico_escolhido` === "" <=> `persona.delegar_escolha_ia` ===
+ *      true <=> "persona.escolha" está em `ai_delegations`. Três formas de ler
+ *      a mesma coisa: a IA é quem escolhe o público.
+ *    - `persona.publico_escolhido_origem` conta COMO se chegou lá:
+ *      "participante"            -> ele escolheu, e o público tem descrição;
+ *      "unico_publico_descrito"  -> só descreveu um público, a escolha é trivial;
+ *      "delegado_ia"             -> pediu a recomendação da IA;
+ *      "descartado_sem_descricao"-> escolheu um público que ficou sem descrição;
+ *                                   a escolha foi descartada e vira delegação;
+ *      "indefinido"              -> nenhum público descrito (briefing incompleto).
+ *    - `persona.publicos_descritos` lista os ids que têm descrição.
+ * 9. `progress.total_questions` é o total de perguntas QUE SE APLICAVAM a este
  *    participante: obrigatórias visíveis + opcionais que ele respondeu.
- *    O formulário tem 37 perguntas numeradas, mas a ramificação PF/PJ, os
- *    campos condicionais e as opcionais em branco alteram o total efetivo.
+ *    O formulário tem 37 perguntas NUMERADAS na tela, mas esse total é outro
+ *    número: a ramificação PF/PJ, os campos condicionais e as opcionais em
+ *    branco mudam quantas perguntas de fato existiram para ele.
  *    `answered_questions` nunca excede `total_questions`, e
  *    `completion_pct === 100` significa briefing pronto para envio.
- * 9. O payload NUNCA contém preço, ticket, faturamento esperado da mentoria ou
+ * 10. Todo texto tem teto: o `maxLength` do campo, e nunca mais que
+ *    `MAX_TEXT_LENGTH` (4000) caracteres. Texto acima disso é cortado. A tela já
+ *    impede passar do limite; o teto aqui é defesa contra estado restaurado de
+ *    versão antiga ou adulterado no `localStorage` — a IA nunca recebe um campo
+ *    gigante capaz de estourar o prompt.
+ * 11. `participant.whatsapp` é E.164 brasileiro (`+55` + DDD válido + número) ou
+ *    "". Número de outro país não é "convertido" para BR: vira "".
+ * 12. O payload NUNCA contém preço, ticket, faturamento esperado da mentoria ou
  *    consequência financeira da transformação — essas perguntas não existem.
  * ==============================================================================
  */
@@ -101,10 +135,35 @@ function score(v, min = 0, max = ESCALA_PUBLICO.max) {
   return Math.min(rounded, max)
 }
 
-/** @param {*} v @returns {string[]} Lista de strings com trim, sem vazios. */
-function strList(v) {
+/**
+ * Teto ABSOLUTO de qualquer texto do payload, em caracteres.
+ * A tela já limita cada campo pelo `maxLength` do schema; este teto é a defesa
+ * contra estado restaurado de uma versão antiga, colado de fora ou adulterado
+ * no localStorage — nada pode estourar o prompt da IA.
+ */
+export const MAX_TEXT_LENGTH = 4000
+
+/**
+ * Texto cortado no menor limite entre o do campo e `MAX_TEXT_LENGTH`.
+ * @param {*} v Valor bruto.
+ * @param {number} [max] Limite do campo (0/ausente = só o teto absoluto).
+ * @returns {string}
+ */
+function clamp(v, max) {
+  const value = str(v)
+  const limit = Number.isFinite(max) && max > 0 ? Math.min(max, MAX_TEXT_LENGTH) : MAX_TEXT_LENGTH
+  if (value.length <= limit) return value
+  return value.slice(0, limit).trim()
+}
+
+/**
+ * @param {*} v Valor bruto.
+ * @param {number} [max] Limite de cada item.
+ * @returns {string[]} Lista de strings com trim e teto, sem vazios.
+ */
+function strList(v, max) {
   if (!Array.isArray(v)) return []
-  return v.map(str).filter((s) => s !== '')
+  return v.map((item) => clamp(item, max)).filter((s) => s !== '')
 }
 
 /* ------------------------------------------------------------------ */
@@ -121,9 +180,13 @@ function raw(answers, id) {
   return answers[id]
 }
 
-/** Texto de um campo do schema, já saneado e respeitando visibilidade. */
+/**
+ * Texto de um campo do schema, saneado, respeitando visibilidade e com o teto
+ * de tamanho do próprio campo (ver `MAX_TEXT_LENGTH`).
+ */
 function text(answers, id) {
-  return str(raw(answers, id))
+  const field = FIELD_BY_ID[id]
+  return clamp(raw(answers, id), field ? field.maxLength : 0)
 }
 
 /** Enum de um campo do schema (string estável), respeitando visibilidade. */
@@ -136,16 +199,61 @@ function enumOf(answers, id) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Normaliza um telefone brasileiro para E.164 (+5511912345678).
+ * DDDs realmente em uso no Brasil (Anatel).
+ * Espelho consciente da lista de `state/phone.js`: o contrato de dados não pode
+ * depender de um módulo de interface. Se a Anatel liberar um DDD novo, os dois
+ * arquivos mudam juntos.
+ */
+const DDD_VALIDOS = new Set([
+  '11', '12', '13', '14', '15', '16', '17', '18', '19',
+  '21', '22', '24', '27', '28',
+  '31', '32', '33', '34', '35', '37', '38',
+  '41', '42', '43', '44', '45', '46', '47', '48', '49',
+  '51', '53', '54', '55',
+  '61', '62', '63', '64', '65', '66', '67', '68', '69',
+  '71', '73', '74', '75', '77', '79',
+  '81', '82', '83', '84', '85', '86', '87', '88', '89',
+  '91', '92', '93', '94', '95', '96', '97', '98', '99',
+])
+
+/**
+ * Normaliza um telefone BRASILEIRO para E.164 (+5511912345678).
+ *
+ * Número de OUTRO PAÍS não é convertido, é recusado: "+1 415 555 0100" devolve
+ * '' em vez de virar "+5514155550100" (um número de Bauru que não existe, para
+ * onde o WhatsApp do participante nunca chegaria).
+ * Também recusa DDD inexistente, celular sem o 9, fixo fora da faixa 2–5 e
+ * sequência de dígito repetido.
+ *
  * @param {string} value Telefone digitado, com ou sem máscara.
- * @returns {string} Telefone em E.164, ou '' quando não há dígitos suficientes.
+ * @returns {string} Telefone em E.164, ou '' quando não é um número BR válido.
  */
 export function normalizePhoneBR(value) {
-  const digits = str(value).replace(/\D/g, '')
+  const original = str(value)
+  if (!original) return ''
+
+  // Código de país declarado: só +55 (ou 0055) segue adiante.
+  const compacto = original.replace(/[\s().\-–—/]/g, '')
+  if (compacto.startsWith('+') && !compacto.startsWith('+55')) return ''
+  if (compacto.startsWith('00') && !compacto.startsWith('0055')) return ''
+
+  let digits = original.replace(/\D/g, '')
   if (!digits) return ''
-  const local = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits
-  if (local.length !== 10 && local.length !== 11) return ''
-  return `+55${local}`
+  if (digits.length > 12 && digits.startsWith('0055')) digits = digits.slice(4)
+  if (digits.length > 11 && digits.startsWith('55')) digits = digits.slice(2)
+  // "0" de tronco/operadora: 011 91234-5678. Nenhum DDD válido começa com 0.
+  while (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1)
+
+  if (digits.length !== 10 && digits.length !== 11) return ''
+  if (/^(\d)\1+$/.test(digits)) return ''
+  if (!DDD_VALIDOS.has(digits.slice(0, 2))) return ''
+
+  const assinante = digits.slice(2)
+  // Celular tem 11 dígitos e começa com 9; fixo tem 10 e começa entre 2 e 5.
+  if (digits.length === 11 && assinante[0] !== '9') return ''
+  if (digits.length === 10 && (assinante[0] < '2' || assinante[0] > '5')) return ''
+
+  return `+55${digits}`
 }
 
 /**

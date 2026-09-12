@@ -36,6 +36,12 @@
  * @property {number} maxLength
  * @property {number} rows
  * @property {import('./options.js').Option[]|null} options
+ * @property {((answers: Object) => import('./options.js').Option[])|null} optionsIf
+ *   Opções DINÂMICAS: quando presente, é a lista que vale para estas respostas
+ *   (ex.: Q13 só oferece os públicos que foram descritos). Use sempre
+ *   `getFieldOptions(field, answers)` para ler — ele cai em `options` sozinho.
+ *   `options` continua sendo a lista COMPLETA, para traduzir valor -> rótulo
+ *   em telas de revisão (`labelOf`).
  * @property {{ value: string, placeholderFieldId: string }|null} otherOption
  * @property {Escape|null} escape
  * @property {string} aiFallback      Texto da opção de delegar à IA ('' quando não há).
@@ -105,6 +111,32 @@ import {
 
 const isPF = (a) => a.persona_tipo_cliente === 'pf' || a.persona_tipo_cliente === 'ambos'
 const isPJ = (a) => a.persona_tipo_cliente === 'pj' || a.persona_tipo_cliente === 'ambos'
+
+/**
+ * Descrição de um público (A/B/C) dentro da resposta de Q12.
+ * Tolerante a estado restaurado torto: qualquer coisa que não seja objeto vira ''.
+ * @param {Object} answers Respostas atuais.
+ * @param {string} id 'A' | 'B' | 'C'.
+ * @returns {string} Descrição com trim, ou ''.
+ */
+function descricaoDoPublico(answers, id) {
+  const fonte = answers && typeof answers.persona_publicos === 'object' && answers.persona_publicos
+    ? answers.persona_publicos
+    : {}
+  const entry = fonte[id] && typeof fonte[id] === 'object' ? fonte[id] : {}
+  return String(entry.descricao === undefined || entry.descricao === null ? '' : entry.descricao).trim()
+}
+
+/**
+ * Públicos que o participante REALMENTE descreveu na Q12.
+ * É o único conjunto sobre o qual a escolha da Q13 faz sentido: escolher um
+ * público sem descrição manda a IA construir para alguém que ninguém descreveu.
+ * @param {Object} [answers] Respostas atuais.
+ * @returns {string[]} Ex.: ['A', 'C'] — sempre na ordem A, B, C.
+ */
+export function getPublicosDescritos(answers = {}) {
+  return PUBLICOS.filter((p) => descricaoDoPublico(answers, p.value) !== '').map((p) => p.value)
+}
 
 /* ------------------------------------------------------------------ */
 /* Definição das 6 etapas / 37 perguntas                               */
@@ -303,12 +335,33 @@ const RAW_STEPS = [
             number: 13,
             type: 'radio',
             label: 'Qual público você deseja usar para construir sua mentoria hoje?',
+            /* Lista COMPLETA: é o que traduz valor -> rótulo na revisão. */
             options: PUBLICOS,
+            /* Lista QUE VALE: só os públicos descritos na Q12. Escolher um
+               público em branco faria a IA construir para um desconhecido. */
+            optionsIf: (a) => {
+              const descritos = getPublicosDescritos(a)
+              return PUBLICOS.filter((p) => descritos.includes(p.value))
+            },
+            /* Com um público só descrito não existe escolha a fazer: a pergunta
+               some e o payload assume esse público (`publico_escolhido_origem`
+               = "unico_publico_descrito"). Quem quiser comparar volta na Q12 e
+               descreve o B/C. */
+            visibleIf: (a) => getPublicosDescritos(a).length > 1,
             aiFallback: 'Quero que a IA avalie e recomende',
             escape: {
               id: 'persona_escolha_delegada_ia',
               label: 'Quero que a IA avalie e recomende',
               ai: true,
+            },
+            notice: {
+              text: 'Esse público ainda não foi descrito na pergunta anterior. Volte e descreva, ou peça a recomendação da IA — sem a descrição não há o que construir para ele.',
+              visibleIf: (a) => {
+                const escolhido = typeof a.persona_publico_escolhido === 'string'
+                  ? a.persona_publico_escolhido
+                  : ''
+                return escolhido !== '' && !getPublicosDescritos(a).includes(escolhido)
+              },
             },
             payloadPath: 'persona.publico_escolhido',
           },
@@ -796,6 +849,7 @@ function normalizeField(raw) {
     maxLength: DEFAULT_MAX_LENGTH[type] || 0,
     rows: DEFAULT_ROWS[type] || 0,
     options: null,
+    optionsIf: null,
     otherOption: null,
     escape: null,
     aiFallback: '',
@@ -940,6 +994,26 @@ export function getScreenPosition(step, screen, answers = {}) {
  */
 export function getVisibleFieldsOfStep(step, answers = {}) {
   return getVisibleScreens(step, answers).flatMap((screen) => getVisibleFields(screen, answers))
+}
+
+/**
+ * Opções que valem para ESTAS respostas.
+ * Campos com `optionsIf` (hoje só a Q13) têm lista dinâmica; todos os outros
+ * devolvem `field.options`. Quem renderiza um campo de escolha deve ler as
+ * opções por aqui, nunca direto de `field.options` — senão oferece alternativa
+ * que o participante não pode escolher.
+ * @param {Field|string} field Campo ou id do campo.
+ * @param {Object} [answers] Respostas atuais.
+ * @returns {import('./options.js').Option[]} Lista de opções (nunca null).
+ */
+export function getFieldOptions(field, answers = {}) {
+  const f = typeof field === 'string' ? FIELD_BY_ID[field] : field
+  if (!f) return []
+  if (typeof f.optionsIf === 'function') {
+    const dynamic = f.optionsIf(answers)
+    if (Array.isArray(dynamic)) return dynamic
+  }
+  return Array.isArray(f.options) ? f.options : []
 }
 
 /**

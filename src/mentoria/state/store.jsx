@@ -102,7 +102,7 @@ function buildPayloadSafe(input) {
   };
 }
 
-async function sendBriefingSafe(payload) {
+async function sendBriefingSafe(payload, opts) {
   if (!Webhook.sendBriefing) {
     return {
       ok: false,
@@ -118,7 +118,7 @@ async function sendBriefingSafe(payload) {
     };
   }
   try {
-    return await Webhook.sendBriefing(payload, { timeoutMs: CONFIG.WEBHOOK_TIMEOUT_MS });
+    return await Webhook.sendBriefing(payload, { timeoutMs: CONFIG.WEBHOOK_TIMEOUT_MS, ...(opts || {}) });
   } catch (err) {
     // sendBriefing promete nunca lançar; ainda assim, cinto e suspensório.
     return {
@@ -134,6 +134,30 @@ async function sendBriefingSafe(payload) {
       },
       thrown: String(err && err.message ? err.message : err),
     };
+  }
+}
+
+/**
+ * "Vazio" = ausência de resposta (0 e false SÃO respostas).
+ * Espelha a regra de storage.js: só o que está vazio aqui pode ser adotado de
+ * outra aba — assim nunca trocamos o texto que a pessoa acabou de escrever.
+ */
+function isEmptyAnswer(v) {
+  if (v === undefined || v === null) return true;
+  if (typeof v === 'string') return v.trim() === '';
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.keys(v).length === 0;
+  return false;
+}
+
+/** Id do campo que está sob o dedo do participante AGORA (não se mexe nele). */
+function focusedFieldId() {
+  try {
+    const el = typeof document === 'undefined' ? null : document.activeElement;
+    if (!el) return '';
+    return String(el.id || el.name || '');
+  } catch (_e) {
+    return '';
   }
 }
 
@@ -196,7 +220,7 @@ function createSession() {
  * submission_id não muda, então o n8n continua deduplicando).
  */
 function reviveSubmission(saved) {
-  const base = { status: 'idle', error: null, errorMessage: null, attempts: 0, sent_at: null };
+  const base = { status: 'idle', error: null, errorMessage: null, attempts: 0, sent_at: null, waiting_long: false };
   if (!saved || typeof saved !== 'object') return base;
   if (saved.status !== 'sending') return { ...base, ...saved };
   const info = getErrorInfo(ERROR_CODES.CANCELED);
@@ -206,6 +230,7 @@ function reviveSubmission(saved) {
     status: 'error',
     error: info,
     errorMessage: info.message,
+    waiting_long: false,
   };
 }
 
@@ -317,9 +342,69 @@ export function BriefingProvider({ children }) {
     nav.screenIndex < 0 ? 'intro' : nav.screenIndex >= visibleScreens.length ? 'outro' : 'screen';
   const currentScreen = screenPhase === 'screen' ? visibleScreens[nav.screenIndex] : null;
 
+  /* ---------------- convivência entre abas ------------------------- */
+  /**
+   * O storage devolve, em 'external', SÓ o que esta aba ainda não tinha (merge
+   * na escrita ou evento 'storage' de outra aba). Aqui a adoção é aplicada ao
+   * React com três cuidados:
+   *   1. nunca sobrescreve resposta preenchida nesta aba;
+   *   2. nunca toca no campo que está com o foco (a pessoa está digitando nele);
+   *   3. se nada mudar de fato, não chama setState — é o que impede o pinga-pong
+   *      de gravações entre as duas abas.
+   */
+  const adoptExternal = useCallback((patch) => {
+    if (!patch || typeof patch !== 'object') return;
+    const focused = focusedFieldId();
+
+    if (patch.answers && Object.keys(patch.answers).length) {
+      setAnswersState((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        Object.keys(patch.answers).forEach((key) => {
+          if (key === focused) return;
+          if (!isEmptyAnswer(prev[key])) return;
+          if (isEmptyAnswer(patch.answers[key])) return;
+          next[key] = patch.answers[key];
+          changed = true;
+        });
+        return changed ? next : prev;
+      });
+    }
+
+    if (patch.identity && Object.keys(patch.identity).length) {
+      setIdentityState((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        Object.keys(patch.identity).forEach((key) => {
+          if (key === focused) return;
+          if (!isEmptyAnswer(prev[key])) return;
+          if (isEmptyAnswer(patch.identity[key])) return;
+          next[key] = patch.identity[key];
+          changed = true;
+        });
+        return changed ? next : prev;
+      });
+    }
+
+    // Convergência de sessão: as duas abas passam a usar o MESMO submission_id,
+    // que é o que faz o n8n tratar os dois envios como um só briefing.
+    if (patch.session && patch.session.session_id) {
+      setSession((prev) => {
+        if (prev && prev.session_id === patch.session.session_id) return prev;
+        if (submissionRef.current.status === 'sending' || submissionRef.current.status === 'success') return prev;
+        warn('adotando a sessão da outra aba', patch.session.session_id);
+        return { ...prev, ...patch.session };
+      });
+    }
+  }, []);
+
   /* ---------------- persistência ---------------------------------- */
   useEffect(() => {
     const unsubscribe = Storage.subscribe((info) => {
+      if (info.status === 'external') {
+        adoptExternal(info.patch);
+        return;
+      }
       if (info.status === 'saving') {
         setSaveState('saving');
       } else if (info.status === 'saved' || info.status === 'memory') {
@@ -340,7 +425,7 @@ export function BriefingProvider({ children }) {
     });
     Storage.ensureFlushHandlers();
     return unsubscribe;
-  }, []);
+  }, [adoptExternal]);
 
   useEffect(() => {
     // não grava na hidratação inicial: nada mudou ainda
@@ -549,6 +634,63 @@ export function BriefingProvider({ children }) {
     }
   }, [applyNav]);
 
+  /* ---------------- gesto de voltar do celular ---------------------- */
+  /**
+   * Sem integração com o history, o gesto de voltar do celular tira o
+   * participante do construtor e o joga no dashboard no meio do evento. Nada se
+   * perde (tudo está no localStorage), mas ele sai do fluxo.
+   *
+   * A solução vive inteira aqui, sem tocar em nenhuma tela: cada navegação
+   * empilha uma entrada no history com uma FOTO do `nav`, e o `popstate`
+   * devolve essa foto para o mesmo `applyNav` que a UI já usa. Voltar do
+   * boas-vindas (nossa primeira entrada) continua saindo da página — é o que o
+   * participante quer quando insiste em voltar.
+   *
+   * A URL nunca muda: `pushState` sem terceiro argumento mantém `/mentoria`, e
+   * o roteador de `main.jsx` (que lê o path na carga) segue intacto.
+   */
+  const navKey = `${nav.phase}:${nav.stepIndex}:${nav.screenIndex}`;
+  const historyRef = useRef({ key: null, popping: false });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.history || !window.addEventListener) return undefined;
+    const onPop = (event) => {
+      const snap = event && event.state ? event.state.mentoria : null;
+      if (!snap || typeof snap !== 'object') return; // entrada que não é nossa
+      historyRef.current.popping = true;
+      applyNav({
+        phase: snap.phase,
+        stepIndex: snap.stepIndex,
+        screenIndex: snap.screenIndex,
+      });
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [applyNav]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.history) return;
+    const h = historyRef.current;
+    // StrictMode remonta o efeito: a mesma tela nunca empilha duas entradas.
+    if (h.key === navKey) {
+      h.popping = false;
+      return;
+    }
+    const entry = {
+      ...(window.history.state || {}),
+      mentoria: { phase: nav.phase, stepIndex: nav.stepIndex, screenIndex: nav.screenIndex },
+    };
+    try {
+      // Primeira tela da sessão, ou volta pelo gesto: a entrada já existe.
+      if (h.key === null || h.popping) window.history.replaceState(entry, '');
+      else window.history.pushState(entry, '');
+    } catch (_e) {
+      /* history bloqueado (iframe exótico): navegação normal segue funcionando */
+    }
+    h.popping = false;
+    h.key = navKey;
+  }, [navKey, nav.phase, nav.stepIndex, nav.screenIndex]);
+
   /* ---------------- validação -------------------------------------- */
   const validateCurrentScreen = useCallback(() => {
     const current = navRef.current;
@@ -602,7 +744,16 @@ export function BriefingProvider({ children }) {
     const progressNow = progressRef.current;
     const attempt = (submissionRef.current.attempts || 0) + 1;
 
-    setSubmission((prev) => ({ ...prev, status: 'sending', error: null, errorMessage: null, attempts: attempt }));
+    setSubmission((prev) => ({
+      ...prev,
+      status: 'sending',
+      error: null,
+      errorMessage: null,
+      attempts: attempt,
+      // Sinal de vida para a UI: vira true se o envio passar de ~6s (quem
+      // desenha o aviso é a camada de telas; aqui só expomos o dado).
+      waiting_long: false,
+    }));
 
     track('submission_started', {
       attempt,
@@ -625,7 +776,13 @@ export function BriefingProvider({ children }) {
         session: { ...sessionNow, submitted_at: new Date().toISOString() },
         progress: progressNow,
       });
-      result = await sendBriefingSafe(payload);
+      result = await sendBriefingSafe(payload, {
+        // Ninguém pode ficar mais de ~8s olhando "ENVIANDO…" sem nenhum sinal.
+        onSlow: () => {
+          if (submissionRef.current.status !== 'sending') return;
+          setSubmission((prev) => (prev.status === 'sending' ? { ...prev, waiting_long: true } : prev));
+        },
+      });
     } catch (err) {
       result = {
         ok: false,
@@ -642,7 +799,7 @@ export function BriefingProvider({ children }) {
 
     if (result && result.ok) {
       const sentAt = new Date().toISOString();
-      setSubmission({ status: 'success', error: null, errorMessage: null, attempts: attempt, sent_at: sentAt, status_code: result.status || 200 });
+      setSubmission({ status: 'success', error: null, errorMessage: null, attempts: attempt, sent_at: sentAt, status_code: result.status || 200, waiting_long: false });
       applyNav({ phase: 'success' });
       track('submission_success', {
         attempt,
@@ -678,6 +835,7 @@ export function BriefingProvider({ children }) {
       error: info,
       errorMessage: info.message,
       attempts: attempt,
+      waiting_long: false,
     }));
     applyNav({ phase: 'error' });
     track('submission_error', {
@@ -687,6 +845,7 @@ export function BriefingProvider({ children }) {
       status: info.status || 0,
       duration_ms: durationMs,
       retryable: info.retryable !== false,
+      slow: !!(result && result.slow),
     });
     return { ok: false, result };
   }, [applyNav]);

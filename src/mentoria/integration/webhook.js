@@ -29,10 +29,35 @@ import {
   classifyThrown,
   shouldAutoRetry,
   getErrorInfo,
+  isOffline,
 } from './errors.js'
 
 /** Timeout padrão se nada for informado (contrato §6). */
 const DEFAULT_TIMEOUT_MS = 15000
+
+/**
+ * TETO DE ESPERA EM EVENTO AO VIVO.
+ *
+ * Por que existe: o contrato/env traz 15000ms como padrão histórico, mas quem
+ * está em pé num salão de eventos, com wifi congestionado, não aguenta 15s de
+ * "ENVIANDO…" sem nenhuma resposta — e o `.env` do evento não é editado no meio
+ * da palestra. Então o webhook aplica um teto PRÓPRIO: qualquer valor maior
+ * (vindo de CONFIG.WEBHOOK_TIMEOUT_MS ou do parâmetro `timeoutMs`) é reduzido
+ * para 12s. Valores MENORES continuam respeitados — quem quiser 5s, tem 5s.
+ *
+ * Se um dia o n8n precisar legitimamente de mais de 12s para confirmar o
+ * RECEBIMENTO, o certo não é aumentar este teto: é configurar o Webhook node em
+ * "Respond immediately" (ver docs/WEBHOOK_N8N.md).
+ */
+const LIVE_EVENT_TIMEOUT_CAP_MS = 12000
+
+/**
+ * Sinal de vida para a UI. Se a resposta não chegou em 6s, avisamos a camada de
+ * estado (`onSlow`) para que ela marque `submission.waiting_long = true`. Quem
+ * desenha esse aviso é a camada de telas — aqui só produzimos o dado.
+ * Regra de ouro do evento: ninguém pode ficar mais de ~8s sem sinal de vida.
+ */
+const SLOW_NOTICE_MS = 6000
 
 /** Backoff curto antes da única retentativa automática. */
 const RETRY_BASE_DELAY_MS = 1200
@@ -53,6 +78,7 @@ const MAX_AUTO_RETRIES = 1
  * @property {{code:string,title:string,message:string,retryable:boolean,status:number}|null} error
  * @property {number}  attempts      quantas requisições saíram de fato (1 ou 2)
  * @property {boolean} retried       houve retentativa automática?
+ * @property {boolean} slow          o envio passou de SLOW_NOTICE_MS antes de terminar
  * @property {number}  durationMs    tempo total gasto
  * @property {string}  submissionId  id reenviado idêntico em toda tentativa
  */
@@ -66,26 +92,44 @@ const MAX_AUTO_RETRIES = 1
  * @param {object} payload             saída de schema/payload.js `buildPayload()`
  * @param {object} [opts]
  * @param {AbortSignal} [opts.signal]  cancelamento externo (desmontar tela, sair)
- * @param {number} [opts.timeoutMs]    sobrescreve CONFIG.WEBHOOK_TIMEOUT_MS
+ * @param {number} [opts.timeoutMs]    sobrescreve CONFIG.WEBHOOK_TIMEOUT_MS (limitado a 12s)
+ * @param {(info:{elapsedMs:number,attempt:number})=>void} [opts.onSlow]
+ *        chamado UMA vez se o envio passar de 6s sem terminar. Serve para a
+ *        camada de estado acender `submission.waiting_long`.
+ * @param {number} [opts.slowAfterMs] sobrescreve os 6s do aviso de demora
  * @returns {Promise<SendResult>}
  */
-export async function sendBriefing(payload, { signal, timeoutMs } = {}) {
+export async function sendBriefing(payload, { signal, timeoutMs, onSlow, slowAfterMs } = {}) {
   const startedAt = now()
+  let slow = false
   const submissionId = readMeta(payload, 'submission_id')
   const sessionId = readMeta(payload, 'session_id')
 
-  const finish = (partial) => ({
-    ok: false,
-    status: 0,
-    body: null,
-    errorCode: null,
-    error: null,
-    attempts: 0,
-    retried: false,
-    submissionId,
-    ...partial,
-    durationMs: now() - startedAt,
-  })
+  const finish = (partial) => {
+    clearSlowTimer()
+    return {
+      ok: false,
+      status: 0,
+      body: null,
+      errorCode: null,
+      error: null,
+      attempts: 0,
+      retried: false,
+      submissionId,
+      ...partial,
+      slow,
+      durationMs: now() - startedAt,
+    }
+  }
+
+  // Relógio do "sinal de vida": dispara uma única vez e nunca derruba o envio.
+  let slowTimer = null
+  const clearSlowTimer = () => {
+    if (slowTimer) {
+      clearTimeout(slowTimer)
+      slowTimer = null
+    }
+  }
 
   const fail = (code, extra = {}) =>
     finish({ errorCode: code, error: getErrorInfo(code, { status: extra.status || 0 }), ...extra })
@@ -120,16 +164,28 @@ export async function sendBriefing(payload, { signal, timeoutMs } = {}) {
 
   // 4. Offline declarado pelo próprio navegador --------------------------
   // Barato e evita um erro de rede feio + a espera do backoff.
+  // Note o código: OFFLINE (aparelho sem rede) é diferente de NETWORK
+  // (aparelho com rede, servidor inalcançável) — a mensagem muda por completo.
   if (isOffline()) {
     debug('navigator.onLine === false — nem tentamos')
-    return fail(ERROR_CODES.NETWORK)
+    return fail(ERROR_CODES.OFFLINE)
   }
 
   const headers = buildHeaders({ submissionId, sessionId })
   const budget = resolveTimeout(timeoutMs)
+  const slowAt = resolveSlowNotice(slowAfterMs, budget)
 
   let attempts = 0
   let last = null
+
+  if (typeof onSlow === 'function') {
+    slowTimer = setTimeout(() => {
+      slow = true
+      try {
+        onSlow({ elapsedMs: now() - startedAt, attempt: attempts || 1 })
+      } catch (_e) { /* assinante quebrado não derruba o envio */ }
+    }, slowAt)
+  }
 
   for (let round = 0; round <= MAX_AUTO_RETRIES; round += 1) {
     attempts += 1
@@ -158,7 +214,7 @@ export async function sendBriefing(payload, { signal, timeoutMs } = {}) {
     debug(`tentativa ${attempts} falhou (${last.errorCode}/${last.status}) — repetindo em ${wait}ms com o MESMO submission_id`)
     const slept = await sleep(wait, signal)
     if (!slept) return fail(ERROR_CODES.CANCELED, { attempts })
-    if (isOffline()) return fail(ERROR_CODES.NETWORK, { attempts })
+    if (isOffline()) return fail(ERROR_CODES.OFFLINE, { attempts })
   }
 
   return finish({
@@ -273,9 +329,18 @@ function resolveTimeout(explicit) {
   const candidates = [explicit, CONFIG?.WEBHOOK_TIMEOUT_MS, DEFAULT_TIMEOUT_MS]
   for (const value of candidates) {
     const n = Number(value)
-    if (Number.isFinite(n) && n > 0) return n
+    // O teto vale para TODAS as fontes, inclusive o parâmetro explícito:
+    // é uma decisão de produto do evento ao vivo, não um detalhe de chamada.
+    if (Number.isFinite(n) && n > 0) return Math.min(n, LIVE_EVENT_TIMEOUT_CAP_MS)
   }
-  return DEFAULT_TIMEOUT_MS
+  return Math.min(DEFAULT_TIMEOUT_MS, LIVE_EVENT_TIMEOUT_CAP_MS)
+}
+
+/** O aviso de demora precisa vir ANTES do timeout, senão não avisa nada. */
+function resolveSlowNotice(explicit, budget) {
+  const n = Number(explicit)
+  const wanted = Number.isFinite(n) && n > 0 ? n : SLOW_NOTICE_MS
+  return Math.max(500, Math.min(wanted, Math.max(500, budget - 500)))
 }
 
 function retryDelay(retryAfterMs) {
@@ -315,18 +380,6 @@ function sleep(ms, signal) {
   })
 }
 
-/**
- * `navigator.onLine === false` é uma certeza de que estamos offline.
- * `true` não garante internet — por isso só usamos o caso negativo.
- */
-function isOffline() {
-  try {
-    return typeof navigator !== 'undefined' && navigator.onLine === false
-  } catch {
-    return false
-  }
-}
-
 function readMeta(payload, key) {
   const value = payload && payload.meta ? payload.meta[key] : ''
   return typeof value === 'string' ? value.trim() : ''
@@ -343,4 +396,5 @@ function debug(...args) {
 }
 
 export { ERROR_CODES } from './errors.js'
-export { getErrorInfo, errorMessage } from './errors.js'
+export { getErrorInfo, errorMessage, isOffline } from './errors.js'
+export { LIVE_EVENT_TIMEOUT_CAP_MS, SLOW_NOTICE_MS }
