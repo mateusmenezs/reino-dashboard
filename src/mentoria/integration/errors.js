@@ -8,12 +8,21 @@
  * Dono: AGENTE C (integração). Ver docs/WEBHOOK_N8N.md.
  */
 
-/** @typedef {'config_missing'|'network'|'timeout'|'http_4xx'|'http_5xx'|'invalid_response'|'canceled'|'unknown'} ErrorCode */
+/** @typedef {'config_missing'|'offline'|'network'|'timeout'|'http_4xx'|'http_5xx'|'invalid_response'|'canceled'|'unknown'} ErrorCode */
 
 export const ERROR_CODES = Object.freeze({
   /** Nenhuma URL de webhook configurada (VITE_N8N_WEBHOOK_URL vazia). */
   CONFIG_MISSING: 'config_missing',
-  /** Falha de conexão, DNS, CORS bloqueado ou aparelho offline. */
+  /**
+   * O APARELHO está sem conexão (`navigator.onLine === false`).
+   * Culpa do wi-fi/dados do participante — ele consegue resolver sozinho.
+   */
+  OFFLINE: 'offline',
+  /**
+   * O aparelho tem conexão, mas a requisição não chegou ao destino:
+   * DNS, TLS, CORS bloqueado ou servidor fora do ar.
+   * NÃO é problema de internet do participante — é nosso.
+   */
   NETWORK: 'network',
   /** O servidor não respondeu dentro de CONFIG.WEBHOOK_TIMEOUT_MS. */
   TIMEOUT: 'timeout',
@@ -42,14 +51,19 @@ export const ERROR_MESSAGES = Object.freeze({
     message: 'O canal de envio ainda não foi configurado para este evento. Suas respostas estão salvas neste aparelho — avise a equipe e tente de novo em seguida.',
     retryable: true,
   },
+  [ERROR_CODES.OFFLINE]: {
+    title: 'Seu aparelho está sem internet',
+    message: 'Não encontramos conexão neste aparelho. Suas respostas estão salvas aqui. Reative o wi-fi ou os dados móveis e toque em enviar novamente.',
+    retryable: true,
+  },
   [ERROR_CODES.NETWORK]: {
-    title: 'Sem conexão no momento',
-    message: 'Não conseguimos enviar agora. Suas respostas estão salvas. Confira sua internet e toque em enviar novamente.',
+    title: 'Nosso sistema não respondeu',
+    message: 'Sua internet está funcionando, mas não conseguimos falar com o nosso sistema. Suas respostas estão salvas neste aparelho — avise a equipe do evento e tente novamente.',
     retryable: true,
   },
   [ERROR_CODES.TIMEOUT]: {
-    title: 'A conexão demorou demais',
-    message: 'O envio passou do tempo e foi interrompido. Suas respostas estão salvas. Tente novamente em alguns segundos.',
+    title: 'Nosso sistema demorou para responder',
+    message: 'O envio passou do tempo de espera. Ele pode ter chegado mesmo assim — avise a equipe do evento. Suas respostas estão salvas: tentar de novo não cria briefing duplicado.',
     retryable: true,
   },
   [ERROR_CODES.HTTP_4XX]: {
@@ -78,6 +92,18 @@ export const ERROR_MESSAGES = Object.freeze({
     retryable: true,
   },
 })
+
+/**
+ * `navigator.onLine === false` é uma certeza de que o APARELHO está offline.
+ * `true` não garante internet — por isso só usamos o caso negativo.
+ */
+export function isOffline() {
+  try {
+    return typeof navigator !== 'undefined' && navigator.onLine === false
+  } catch {
+    return false
+  }
+}
 
 /** Status HTTP que são 4xx mas indicam "tente de novo", não "está errado". */
 const RETRYABLE_4XX = new Set([408, 425, 429])
@@ -108,8 +134,10 @@ export function classifyThrown(err, abortReason = null) {
     return ERROR_CODES.TIMEOUT
   }
   // fetch rejeita com TypeError para falha de rede, DNS, TLS e CORS bloqueado.
-  if (name === 'TypeError') return ERROR_CODES.NETWORK
-  if (err instanceof Error) return ERROR_CODES.NETWORK
+  // Só é "sem internet" se o próprio aparelho declarar que está offline;
+  // caso contrário o problema é do outro lado do fio (nosso servidor).
+  if (name === 'TypeError') return isOffline() ? ERROR_CODES.OFFLINE : ERROR_CODES.NETWORK
+  if (err instanceof Error) return isOffline() ? ERROR_CODES.OFFLINE : ERROR_CODES.NETWORK
   return ERROR_CODES.UNKNOWN
 }
 
@@ -125,10 +153,19 @@ export function classifyThrown(err, abortReason = null) {
  * @returns {boolean}
  */
 export function shouldAutoRetry(code, status = 0) {
+  // Rede: a requisição não chegou a ser aceita por ninguém. Repetir é seguro.
   if (code === ERROR_CODES.NETWORK) return true
-  if (code === ERROR_CODES.TIMEOUT) return true
+  // 5xx/429/408: o servidor respondeu dizendo "não deu, tente de novo".
   if (code === ERROR_CODES.HTTP_5XX) return true
   if (code === ERROR_CODES.HTTP_4XX) return RETRYABLE_4XX.has(status)
+  // TIMEOUT nunca repete sozinho: num timeout o servidor PROVAVELMENTE já
+  // recebeu o briefing e só demorou para responder. Repetir automaticamente é
+  // apostar que o n8n está deduplicando — e ainda dobra a espera do
+  // participante (2 × timeout antes de qualquer feedback). O botão "tentar
+  // novamente" continua disponível: aí a decisão é de quem está na tela.
+  if (code === ERROR_CODES.TIMEOUT) return false
+  // OFFLINE: o aparelho já disse que não tem rede. Repetir em 1,2s é inútil.
+  if (code === ERROR_CODES.OFFLINE) return false
   return false
 }
 
