@@ -15,21 +15,21 @@ import {
   Icon,
   ProgressBar,
   Reveal,
+  Surface,
   color,
   font,
   radius,
+  type,
 } from '../ui/index.js'
 import { STEPS } from '../schema/questions.js'
 import { useBriefing } from '../state/store.jsx'
 import {
   Body,
   BarRow,
-  Eyebrow,
   Note,
   ScreenShell,
   findResumePoint,
   titleCase,
-  wrapCta,
 } from './Layout.jsx'
 
 export default function Welcome() {
@@ -74,7 +74,7 @@ export default function Welcome() {
         Leva aproximadamente 20–30 minutos, distribuídos ao longo do evento.
       </p>
       <BarRow>
-        <Button variant="primary" size="lg" full onClick={handleStart} style={wrapCta}>
+        <Button variant="primary" size="lg" full onClick={handleStart}>
           {resuming ? 'CONTINUAR MINHA MENTORIA →' : 'COMEÇAR MINHA MENTORIA →'}
         </Button>
       </BarRow>
@@ -83,37 +83,38 @@ export default function Welcome() {
 
   return (
     <ScreenShell footer={footer} padTop={32} padBottom={28}>
+      {/*
+        A primeira impressão do evento abre em marinho. É a única superfície
+        escura desta tela: o que vem depois (progresso, etapas, aviso) volta
+        para a base clara, que é onde o trabalho acontece.
+
+        Por que `Surface` e não `Hero`: o `Hero` fixa o título em `type.display`
+        (28px), e `type.displayXl` (32px) é, por contrato dos tokens, o tamanho
+        da ABERTURA DO APP. Usar o `Hero` aqui achataria dois degraus da escala
+        num só e faria a porta de entrada pesar igual à abertura de etapa.
+        Os três contrastes são os mesmos do `Hero`, medidos sobre o marinho:
+        kicker #7EA6FF 7,22:1 · título #FFFFFF 17,25:1 · corpo #C6D2E4 11,29:1.
+      */}
       <Reveal>
-        <Eyebrow>Construtor de Mentoria com IA</Eyebrow>
+        <Surface tone="navy" padded={false} style={{ padding: '28px 20px' }}>
+          <p style={{ margin: '0 0 12px', ...type.overline, color: color.actionSoft }}>
+            Construtor de Mentoria com IA
+          </p>
 
-        <h1
-          id="m-screen-title"
-          tabIndex={-1}
-          style={{
-            margin: '14px 0 0',
-            fontSize: font.size.displayXl,
-            fontWeight: font.weight.bold,
-            letterSpacing: font.tracking.tight,
-            lineHeight: font.leading.tight,
-            color: color.ink,
-            outline: 'none',
-          }}
-        >
-          Crie sua Mentoria com IA
-        </h1>
+          <h1
+            id="m-screen-title"
+            tabIndex={-1}
+            style={{ margin: 0, ...type.displayXl, color: color.onDark, outline: 'none' }}
+          >
+            Crie sua Mentoria com IA
+          </h1>
 
-        <p
-          style={{
-            margin: '14px 0 0',
-            fontSize: font.size.lg,
-            lineHeight: font.leading.relaxed,
-            color: color.inkSoft,
-          }}
-        >
-          Transforme sua história, conhecimento e resultados em uma mentoria estruturada.
-        </p>
+          <p style={{ margin: '16px 0 0', ...type.lead, color: color.onDarkMuted }}>
+            Transforme sua história, conhecimento e resultados em uma mentoria estruturada.
+          </p>
+        </Surface>
 
-        <Body style={{ marginTop: '14px' }}>
+        <Body style={{ marginTop: '20px' }}>
           Durante o evento, vamos construir cada parte juntos. Preencha as etapas conforme Mateus
           avançar no conteúdo.
         </Body>

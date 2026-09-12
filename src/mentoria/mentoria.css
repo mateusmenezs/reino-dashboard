@@ -20,6 +20,15 @@
    ========================================================================== */
 
 body.mentoria-page {
+  /* O construtor roda SEM o `index.css` do dashboard (ele é importado dentro de
+     App.jsx, que esta rota não monta) e, com ele, sem o preflight do Tailwind
+     que zera a margem do <body>. Sobrava a margem padrão do navegador (8px),
+     que comia 16px de largura em TODA tela: em 320px a coluna útil virava
+     304px e o CTA longo da revisão ("CRIAR MINHA MENTORIA COM IA →", 249px de
+     rótulo) não cabia mais na caixa do botão por 9px — quebrava em duas linhas.
+     O gutter da tela é responsabilidade do `ScreenShell` (layout.gutter), não
+     do <body>. */
+  margin: 0;
   background: #f4f6fa; /* = color.bg */
   color: #0a1b33; /* = color.ink */
   /* Evita o "rubber band" branco/escuro no iOS ao passar do fim da página. */

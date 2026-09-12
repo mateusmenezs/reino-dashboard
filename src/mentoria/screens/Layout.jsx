@@ -18,7 +18,7 @@
  */
 
 import React from 'react'
-import { BottomBar, color, control, font, layout, radius } from '../ui/index.js'
+import { BottomBar, color, font, layout, radius } from '../ui/index.js'
 import {
   STEPS,
   getVisibleScreens,
@@ -77,21 +77,6 @@ export function ScreenShell({
       ) : null}
     </React.Fragment>
   )
-}
-
-/**
- * Override para CTAs longos ("CRIAR MINHA MENTORIA COM IA →").
- * O <Button> do DS tem altura fixa e `line-height: 1`; em 320px um rótulo
- * longo estouraria a caixa. Aqui a altura passa a ser mínima e o texto pode
- * quebrar em duas linhas — sem nunca criar rolagem horizontal.
- */
-export const wrapCta = {
-  height: 'auto',
-  minHeight: control.heightLg,
-  padding: '14px 16px',
-  fontSize: font.size.md,
-  lineHeight: 1.25,
-  whiteSpace: 'normal',
 }
 
 /** Linha de botões da BottomBar: Voltar (fixo) + ação principal (elástica). */

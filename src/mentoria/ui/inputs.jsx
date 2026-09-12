@@ -407,7 +407,17 @@ export const TextArea = forwardRef(function TextArea(
     /* Duas passadas evitam "jank": zera, mede, aplica. */
     const fit = () => {
       el.style.height = 'auto'
-      el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`
+      /* `box-sizing: border-box` + `scrollHeight`: o `scrollHeight` mede
+         content + padding e IGNORA a borda, mas a altura que estamos
+         escrevendo é de caixa de BORDA. Sem somar a borda de volta, a caixa
+         fica 2px curta e sobra um resíduo de rolagem (`scrollTopMax = 2`) em
+         todo textarea que cresceu — a última linha treme ao digitar.
+         Medido antes da correção: offsetHeight 236 / clientHeight 234 /
+         scrollHeight 236. `offsetHeight - clientHeight` é exatamente essa
+         borda (o overflow é `hidden`, então não há barra de rolagem no meio).
+         `minHeight` já é valor de caixa de borda e entra na comparação cru. */
+      const borderY = el.offsetHeight - el.clientHeight
+      el.style.height = `${Math.max(el.scrollHeight + borderY, minHeight)}px`
     }
     fit()
     /* Girar o aparelho muda a largura e, com ela, o número de linhas. */

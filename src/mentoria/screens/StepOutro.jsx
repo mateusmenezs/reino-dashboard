@@ -18,6 +18,14 @@
  * com a porcentagem e a frase muda de registro (a partir dali o trabalho é da
  * IA). Sem confete e sem autoajuda: o que muda é a escala, não o tom.
  *
+ * ── O SELO EM MARINHO ───────────────────────────────────────────────────────
+ * A marca era um círculo verde de "deu certo" — o feedback de um formulário,
+ * não o fecho de um trecho de trabalho. Ela passa a ser a superfície marinho:
+ * o mesmo peso da abertura da etapa, fechando o arco. O verde continua vivo
+ * onde ele é informação (campo salvo, resposta válida), não aqui, onde o que
+ * se comunica é autoridade. O selo de 100% acompanha (`Badge tone="navy"`) —
+ * em verde ele brigaria com o marinho ao lado.
+ *
  * Nota de arquitetura: idealmente estas frases morariam em `step.outro` (dono:
  * agente do schema). Enquanto não estiverem lá, ficam aqui indexadas por
  * `step.id` — microcopy de interface, no mesmo lugar de sempre, fácil de
@@ -25,7 +33,7 @@
  */
 
 import React from 'react'
-import { Badge, Button, Icon, ProgressBar, Reveal, color, font, radius, shadow } from '../ui/index.js'
+import { Badge, Button, Icon, ProgressBar, Reveal, color, font, gradient, radius, shadow } from '../ui/index.js'
 import { STEPS } from '../schema/questions.js'
 import { useBriefing } from '../state/store.jsx'
 import { Body, BarRow, ScreenShell, titleCase } from './Layout.jsx'
@@ -97,10 +105,12 @@ export default function StepOutro() {
             width: isFinal ? 88 : 64,
             height: isFinal ? 88 : 64,
             borderRadius: radius.pill,
-            background: color.successBg,
-            border: `1px solid ${color.successBorder}`,
-            color: color.success,
-            boxShadow: isFinal ? shadow.md : shadow.sm,
+            /* superfície marinho — branco sobre ela: 14.70:1 no topo do
+               gradiente, 17.25:1 na base */
+            background: gradient.navy,
+            border: `1px solid ${color.navyLine}`,
+            color: color.onDark,
+            boxShadow: shadow.navy,
           }}
         >
           <Icon name="check" size={isFinal ? 42 : 30} strokeWidth={2.5} />
@@ -144,7 +154,7 @@ export default function StepOutro() {
 
           {isFinal ? (
             <div style={{ marginTop: '18px' }}>
-              <Badge tone="success">{OUTRO_COPY.completeBadge(progress.pct)}</Badge>
+              <Badge tone="navy">{OUTRO_COPY.completeBadge(progress.pct)}</Badge>
             </div>
           ) : null}
 

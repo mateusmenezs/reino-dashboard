@@ -22,7 +22,7 @@
 import React, { useCallback, useRef } from 'react'
 import { Button, Card, Icon, Reveal, color, font, radius, shadow } from '../ui/index.js'
 import { useBriefing } from '../state/store.jsx'
-import { BarRow, Body, Note, ScreenShell, wrapCta } from './Layout.jsx'
+import { BarRow, Body, Note, ScreenShell } from './Layout.jsx'
 
 export default function ErrorScreen() {
   const { submission, retry, back } = useBriefing()
@@ -72,7 +72,7 @@ export default function ErrorScreen() {
           onClick={handleRetry}
           loading={sending}
           disabled={sending}
-          style={{ ...wrapCta, flex: '1 1 auto' }}
+          style={{ flex: '1 1 auto' }}
         >
           {sending ? (waitingLong ? 'AINDA ENVIANDO…' : 'ENVIANDO…') : 'TENTAR NOVAMENTE'}
         </Button>

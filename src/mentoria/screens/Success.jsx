@@ -5,10 +5,17 @@
  * Sobriedade proposital: uma marca de confirmação, três blocos de texto e o
  * número mascarado para onde o Blueprint vai. Zero emoji, zero confete e —
  * decisão consciente — NENHUMA promessa de prazo de processamento.
+ *
+ * ── A ÂNCORA ESCURA ─────────────────────────────────────────────────────────
+ * Esta era a única tela da jornada sem um momento marinho: tudo claro, e a
+ * última imagem que o participante leva do evento acabava parecendo leve
+ * demais para o que ele acabou de construir. O bloco do WhatsApp — a única
+ * informação que ele PRECISA guardar daqui — passa a ser a superfície escura
+ * da tela. É o bloco que ele vai fotografar.
  */
 
 import React from 'react'
-import { Card, Icon, Reveal, color, font, radius, shadow } from '../ui/index.js'
+import { Card, Icon, Reveal, SectionTitle, color, font, radius, shadow } from '../ui/index.js'
 import { maskForDisplay } from '../state/phone.js'
 import { useBriefing } from '../state/store.jsx'
 import { Body, ScreenShell } from './Layout.jsx'
@@ -76,44 +83,30 @@ export default function Success() {
       </div>
 
       <Reveal delay={140}>
-        <Card elevated style={{ marginTop: '32px', textAlign: 'center' }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: font.size.xl,
-              fontWeight: font.weight.bold,
-              letterSpacing: font.tracking.tight,
-              color: color.ink,
-            }}
-          >
-            Fique de olho no WhatsApp.
-          </p>
-          <p
-            style={{
-              margin: '10px 0 0',
-              fontSize: font.size.base,
-              lineHeight: font.leading.relaxed,
-              color: color.muted,
-            }}
-          >
-            {masked ? (
-              <React.Fragment>
-                Seu Blueprint será enviado para{' '}
-                <strong
-                  style={{
-                    color: color.ink,
-                    fontWeight: font.weight.semibold,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {masked}
-                </strong>
-                .
-              </React.Fragment>
-            ) : (
-              'Seu Blueprint será enviado para o WhatsApp que você informou.'
-            )}
-          </p>
+        <Card tone="navy" elevated style={{ marginTop: '32px', textAlign: 'center' }}>
+          <SectionTitle
+            onDark
+            title="Fique de olho no WhatsApp."
+            description={
+              masked ? (
+                <React.Fragment>
+                  Seu Blueprint será enviado para{' '}
+                  <strong
+                    style={{
+                      color: color.onDark,
+                      fontWeight: font.weight.semibold,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {masked}
+                  </strong>
+                  .
+                </React.Fragment>
+              ) : (
+                'Seu Blueprint será enviado para o WhatsApp que você informou.'
+              )
+            }
+          />
         </Card>
       </Reveal>
 

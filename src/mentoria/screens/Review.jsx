@@ -52,7 +52,7 @@ import {
 import { labelOf, labelsOf } from '../schema/options.js'
 import { validateAll } from '../state/validation.js'
 import { useBriefing } from '../state/store.jsx'
-import { BarRow, Body, Eyebrow, Note, ScreenShell, focusField, titleCase, wrapCta } from './Layout.jsx'
+import { BarRow, Body, Eyebrow, Note, ScreenShell, focusField, titleCase } from './Layout.jsx'
 
 /* ------------------------------------------------------------------ */
 /* Resposta em forma curta                                             */
@@ -518,7 +518,6 @@ export default function Review() {
           onClick={handleCreate}
           loading={sending}
           disabled={sending}
-          style={wrapCta}
         >
           {sending
             ? waitingLong

@@ -25,5 +25,4 @@ export {
   findResumePoint,
   prefersReducedMotion,
   titleCase,
-  wrapCta,
 } from './Layout.jsx'

@@ -5,12 +5,19 @@
  * Papel: dar respiro e contexto antes das perguntas. Uma ideia dominante por
  * tela. Todo texto vem de `step.intro` (schema); os diagramas vêm de
  * `intro.diagram` / `intro.flow` — nada é escrito aqui.
+ *
+ * ── O MOMENTO MARINHO ───────────────────────────────────────────────────────
+ * A abertura de etapa é onde a jornada ganha o "Governante": ela abre em
+ * superfície marinho (`Hero`) e desce para a base clara das perguntas. Um
+ * bloco escuro por tela, nunca dois — por isso a Etapa 3, cujo título já É o
+ * diagrama marinho, é a única que mantém a moldura clara (ver abaixo).
  */
 
 import React from 'react'
 import {
   Button,
   Card,
+  Hero,
   Icon,
   Reveal,
   StepDots,
@@ -83,47 +90,55 @@ export default function StepIntro() {
           <StepDots total={STEPS.length} current={step.index} />
         </div>
 
-        <p
-          style={{
-            margin: '20px 0 0',
-            fontSize: font.size.sm,
-            fontWeight: font.weight.bold,
-            letterSpacing: font.tracking.wide,
-            textTransform: 'uppercase',
-            color: color.muted,
-          }}
-        >
-          {step.title}
-        </p>
-
         {asDiagram ? (
-          <h1 id="m-screen-title" tabIndex={-1} style={{ margin: '14px 0 0', outline: 'none' }}>
-            <span style={srOnly}>{intro.title}</span>
-            <FlowChain items={intro.diagram} label={intro.title} />
-          </h1>
-        ) : (
-          <h1
-            id="m-screen-title"
-            tabIndex={-1}
-            style={{
-              margin: '10px 0 0',
-              fontSize: font.size.displayLg,
-              fontWeight: font.weight.bold,
-              letterSpacing: font.tracking.tight,
-              lineHeight: font.leading.tight,
-              color: color.ink,
-              outline: 'none',
-            }}
-          >
-            {intro.title}
-          </h1>
-        )}
+          /* ── ETAPA 3: O DIAGRAMA JÁ É A SUPERFÍCIE MARINHO ────────────────
+             Aqui `intro.title` É o encadeado "PONTO A → SEU MÉTODO → PONTO B",
+             e o `FlowChain` já foi convertido para marinho pelo Design System.
+             Envolver isto num `Hero` marinho empilharia escuro sobre escuro e
+             apagaria justamente o nó branco do meio — o método da pessoa, que
+             é o protagonista da tela. Esta etapa mantém a moldura clara: o
+             momento de autoridade dela já existe, e é o diagrama. */
+          <React.Fragment>
+            <p
+              style={{
+                margin: '20px 0 0',
+                fontSize: font.size.sm,
+                fontWeight: font.weight.bold,
+                letterSpacing: font.tracking.wide,
+                textTransform: 'uppercase',
+                color: color.muted,
+              }}
+            >
+              {step.title}
+            </p>
 
-        {intro.body ? (
-          <Body size="lg" style={{ marginTop: '18px' }}>
-            {intro.body}
-          </Body>
-        ) : null}
+            <h1 id="m-screen-title" tabIndex={-1} style={{ margin: '14px 0 0', outline: 'none' }}>
+              <span style={srOnly}>{intro.title}</span>
+              <FlowChain items={intro.diagram} label={intro.title} />
+            </h1>
+
+            {intro.body ? (
+              <Body size="lg" style={{ marginTop: '18px' }}>
+                {intro.body}
+              </Body>
+            ) : null}
+          </React.Fragment>
+        ) : (
+          /* ── AS OUTRAS CINCO ETAPAS: A ABERTURA VIRA MARINHO ──────────────
+             O bloco inteiro (nome da etapa + título + corpo) passa a ser uma
+             superfície marinho. É o "Governante" da direção: cada trecho da
+             jornada abre com peso e fecha na base clara das perguntas.
+             A linha "ETAPA X DE 6" + `StepDots` fica FORA, no claro: os pontos
+             já concluídos são marinho (`color.navy`) e sumiriam sobre ele. */
+          <Hero
+            kicker={step.title}
+            title={intro.title}
+            body={intro.body}
+            titleId="m-screen-title"
+            focusable
+            style={{ marginTop: '20px' }}
+          />
+        )}
       </Reveal>
 
       {!asDiagram && Array.isArray(intro.diagram) && intro.diagram.length > 0 ? (
