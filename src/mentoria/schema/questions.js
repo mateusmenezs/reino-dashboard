@@ -31,6 +31,11 @@
  * @property {string} helper
  * @property {string} placeholder
  * @property {boolean} required
+ * @property {string} requiredMessage
+ *   Mensagem exibida quando o campo obrigatório está vazio. É específica por
+ *   pergunta e fala da CONSEQUÊNCIA de faltar aquela resposta — nunca "campo
+ *   obrigatório". Consumida por `state/validation.js`; sem ela o app cai numa
+ *   frase genérica por tipo de campo.
  * @property {boolean} optionalHint   true = exibir a marca "opcional" ao lado do label.
  * @property {number} minLength
  * @property {number} maxLength
@@ -169,6 +174,7 @@ const RAW_STEPS = [
             label: 'No que você é realmente bom?',
             helper: 'Pense em algo que você sabe fazer bem e que outras pessoas costumam pedir sua ajuda.',
             minLength: 20,
+            requiredMessage: 'Sem isso não temos de onde tirar o seu método.',
             payloadPath: 'lastro.forca',
           },
           {
@@ -178,6 +184,7 @@ const RAW_STEPS = [
             label: 'Qual foi o maior resultado que você já conquistou nessa área?',
             helper: 'Conte fatos. Sempre que possível, use números, prazos, resultados ou mudanças concretas.',
             minLength: 25,
+            requiredMessage: 'É esse resultado que prova que o seu caminho funciona.',
             payloadPath: 'lastro.maior_resultado_proprio',
           },
           {
@@ -190,6 +197,7 @@ const RAW_STEPS = [
               id: 'lastro_terceiros_ausente',
               label: 'Ainda não gerei resultados para terceiros.',
             },
+            requiredMessage: 'Conta um caso — ou marca abaixo que ainda não gerou resultado para terceiros.',
             payloadPath: 'lastro.melhor_resultado_terceiros',
           },
         ],
@@ -207,6 +215,7 @@ const RAW_STEPS = [
             label: 'Antes de conquistar esse resultado, como estava sua situação?',
             helper: 'Conte onde você estava antes da mudança acontecer.',
             minLength: 20,
+            requiredMessage: 'Esse é o ponto de partida da sua história. Precisamos dele.',
             payloadPath: 'lastro.narrativa.antes',
           },
           {
@@ -215,6 +224,7 @@ const RAW_STEPS = [
             type: 'textarea',
             label: 'Qual era a principal dificuldade, problema ou frustração daquele momento?',
             minLength: 15,
+            requiredMessage: 'É a dificuldade que faz seu público se reconhecer em você.',
             payloadPath: 'lastro.narrativa.dificuldade',
           },
           {
@@ -223,6 +233,7 @@ const RAW_STEPS = [
             type: 'textarea',
             label: 'O que você tentou fazer antes e não funcionou?',
             minLength: 15,
+            requiredMessage: 'O que não funcionou com você também não vai funcionar com eles.',
             payloadPath: 'lastro.narrativa.tentativas_falhas',
           },
         ],
@@ -239,6 +250,7 @@ const RAW_STEPS = [
             helper: 'Pode ter sido uma decisão, descoberta, necessidade, experiência, estratégia ou mudança na forma de pensar.',
             minLength: 20,
             rows: 3,
+            requiredMessage: 'A virada é o coração do seu método.',
             payloadPath: 'lastro.narrativa.virada',
           },
           {
@@ -248,6 +260,7 @@ const RAW_STEPS = [
             label: 'O que você passou a fazer diferente depois dessa virada?',
             minLength: 20,
             rows: 3,
+            requiredMessage: 'São essas ações que depois viram os passos da mentoria.',
             payloadPath: 'lastro.narrativa.novas_acoes',
           },
           {
@@ -257,6 +270,7 @@ const RAW_STEPS = [
             label: 'Qual resultado essa nova forma de agir produziu?',
             minLength: 15,
             rows: 3,
+            requiredMessage: 'Sem o resultado, a sua história para no meio.',
             payloadPath: 'lastro.narrativa.resultado_gerado',
           },
           {
@@ -271,6 +285,7 @@ const RAW_STEPS = [
               id: 'lastro_repeticao_ausente',
               label: 'Ainda não consegui repetir.',
             },
+            requiredMessage: 'Conta como foi repetir — ou marca abaixo que ainda não repetiu.',
             payloadPath: 'lastro.narrativa.repeticao',
           },
         ],
@@ -303,6 +318,7 @@ const RAW_STEPS = [
             type: 'textarea',
             label: 'Quem gostaria de conquistar o resultado que você conquistou?',
             minLength: 15,
+            requiredMessage: 'Sem saber quem quer esse resultado, não há para quem construir.',
             payloadPath: 'persona.quem_deseja_resultado',
           },
         ],
@@ -322,6 +338,7 @@ const RAW_STEPS = [
             criteria: CRITERIOS_PUBLICO,
             scale: ESCALA_PUBLICO,
             requiredAudiences: ['A'],
+            requiredMessage: 'Descreve o PÚBLICO A: é ele que abre a comparação.',
             payloadPath: 'persona.publicos',
           },
         ],
@@ -363,6 +380,7 @@ const RAW_STEPS = [
                 return escolhido !== '' && !getPublicosDescritos(a).includes(escolhido)
               },
             },
+            requiredMessage: 'Escolhe o público desta mentoria — ou pede a recomendação da IA.',
             payloadPath: 'persona.publico_escolhido',
           },
           {
@@ -371,6 +389,7 @@ const RAW_STEPS = [
             type: 'radio',
             label: 'Esse cliente é principalmente:',
             options: TIPO_CLIENTE,
+            requiredMessage: 'A mentoria muda de forma se o cliente for uma pessoa ou uma empresa.',
             payloadPath: 'persona.tipo_cliente',
           },
         ],
@@ -388,6 +407,7 @@ const RAW_STEPS = [
             minLength: 4,
             maxLength: 160,
             visibleIf: isPF,
+            requiredMessage: 'Precisamos saber com quem você vai falar.',
             payloadPath: 'persona.pf.perfil',
           },
           {
@@ -398,6 +418,7 @@ const RAW_STEPS = [
             options: FAIXA_RENDA_PF,
             otherOption: { value: 'outro', placeholderFieldId: 'persona_pf_faixa_renda_outro' },
             visibleIf: isPF,
+            requiredMessage: 'A faixa de renda muda o formato e o ritmo da entrega.',
             payloadPath: 'persona.pf.faixa_renda',
           },
         ],
@@ -415,6 +436,7 @@ const RAW_STEPS = [
             minLength: 4,
             maxLength: 160,
             visibleIf: isPJ,
+            requiredMessage: 'Precisamos saber que tipo de empresa é essa.',
             payloadPath: 'persona.pj.segmento',
           },
           {
@@ -425,6 +447,7 @@ const RAW_STEPS = [
             options: FAIXA_FATURAMENTO_PJ,
             otherOption: { value: 'outro', placeholderFieldId: 'persona_pj_faixa_faturamento_outro' },
             visibleIf: isPJ,
+            requiredMessage: 'O porte da empresa muda o formato e o ritmo da entrega.',
             payloadPath: 'persona.pj.faixa_faturamento',
           },
         ],
@@ -439,6 +462,7 @@ const RAW_STEPS = [
             type: 'textarea',
             label: 'Qual é a principal dor dessa pessoa hoje?',
             minLength: 20,
+            requiredMessage: 'A dor é o que faz essa pessoa procurar você.',
             payloadPath: 'persona.dor_principal',
           },
           {
@@ -447,6 +471,7 @@ const RAW_STEPS = [
             type: 'textarea',
             label: 'O que ela mais deseja conquistar?',
             minLength: 20,
+            requiredMessage: 'O desejo dela é a promessa da sua mentoria.',
             payloadPath: 'persona.desejo_principal',
           },
         ],
@@ -461,6 +486,7 @@ const RAW_STEPS = [
             type: 'textarea',
             label: 'O que ela provavelmente já tentou fazer para resolver esse problema?',
             minLength: 15,
+            requiredMessage: 'Sem isso, a sua mentoria repete o que ela já tentou.',
             payloadPath: 'persona.tentativas_anteriores',
           },
           {
@@ -469,6 +495,7 @@ const RAW_STEPS = [
             type: 'textarea',
             label: 'Por que essas tentativas normalmente não funcionam?',
             minLength: 15,
+            requiredMessage: 'É aqui que aparece o espaço que o seu método ocupa.',
             payloadPath: 'persona.por_que_falham',
           },
         ],
@@ -503,6 +530,7 @@ const RAW_STEPS = [
             label: 'PONTO A — Como essa pessoa normalmente chega até você?',
             helper: 'Descreva sua situação, dificuldades e estágio atual.',
             minLength: 25,
+            requiredMessage: 'Precisamos saber de onde essa pessoa parte.',
             payloadPath: 'transformacao.ponto_a',
           },
           {
@@ -512,6 +540,7 @@ const RAW_STEPS = [
             label: 'PONTO B — Como você gostaria que ela estivesse depois de passar pelo seu método?',
             helper: 'Descreva o resultado final de maneira concreta.',
             minLength: 25,
+            requiredMessage: 'Precisamos saber aonde ela chega.',
             payloadPath: 'transformacao.ponto_b',
           },
         ],
@@ -526,6 +555,7 @@ const RAW_STEPS = [
             type: 'radio',
             label: 'Em quanto tempo você acredita que essa transformação pode começar a acontecer de forma realista?',
             options: PRAZO_TRANSFORMACAO,
+            requiredMessage: 'O prazo define o tamanho da mentoria. Se ainda não sabe, marca "Ainda não sei".',
             payloadPath: 'transformacao.prazo_estimado',
           },
           {
@@ -535,6 +565,7 @@ const RAW_STEPS = [
             label: 'Como saberemos que essa pessoa teve resultado?',
             helper: 'Quais fatos, números, comportamentos ou mudanças demonstrariam que ela avançou?',
             minLength: 20,
+            requiredMessage: 'É o que prova, na prática, que a transformação aconteceu.',
             payloadPath: 'transformacao.evidencias_resultado',
           },
         ],
@@ -575,6 +606,7 @@ const RAW_STEPS = [
             idealMax: 5,
             itemMinLength: 10,
             itemMaxLength: 300,
+            requiredMessage: 'São os erros que mostram por que o seu método é necessário.',
             payloadPath: 'metodo.erros_comuns',
           },
         ],
@@ -589,6 +621,7 @@ const RAW_STEPS = [
             type: 'textarea',
             label: 'Por que esses caminhos costumam falhar?',
             minLength: 15,
+            requiredMessage: 'Explica por que o caminho comum não leva ninguém ao resultado.',
             payloadPath: 'metodo.por_que_falham',
           },
           {
@@ -597,6 +630,7 @@ const RAW_STEPS = [
             type: 'textarea',
             label: 'O que você acredita que precisa ser feito de forma diferente?',
             minLength: 20,
+            requiredMessage: 'É essa diferença que vira o seu mecanismo.',
             payloadPath: 'metodo.o_que_precisa_ser_diferente',
           },
         ],
@@ -624,6 +658,7 @@ const RAW_STEPS = [
               ai: true,
             },
             aiFallback: 'Ainda não sei organizar meu processo. Quero que a IA faça isso comigo.',
+            requiredMessage: 'Descreve os passos que já estão claros — ou deixa a IA organizar por você.',
             payloadPath: 'metodo.passos',
           },
         ],
@@ -642,6 +677,7 @@ const RAW_STEPS = [
               text: 'Tudo bem. A IA analisará sua história, mecanismo e transformação e sugerirá nomes.',
               visibleIf: (a) => a.metodo_tem_nome === 'nao',
             },
+            requiredMessage: 'Responde sim ou não. Se ainda não tem nome, a IA sugere.',
             payloadPath: 'metodo.tem_nome',
           },
           {
@@ -653,6 +689,7 @@ const RAW_STEPS = [
             maxLength: 120,
             visibleIf: (a) => a.metodo_tem_nome === 'sim',
             requiredIf: (a) => a.metodo_tem_nome === 'sim',
+            requiredMessage: 'Você disse que o método já tem nome. Qual é?',
             payloadPath: 'metodo.nome',
           },
         ],
@@ -687,6 +724,7 @@ const RAW_STEPS = [
             label: 'Qual modelo mais representa o produto que você gostaria de construir?',
             options: MODELO_PRODUTO,
             aiFallback: 'Ainda não sei / quero recomendação',
+            requiredMessage: 'O modelo define como você entrega e quanto isso escala.',
             payloadPath: 'produto.modelo',
           },
         ],
@@ -701,6 +739,7 @@ const RAW_STEPS = [
             type: 'radio',
             label: 'Por quanto tempo você imagina acompanhar seus mentorados?',
             options: DURACAO_ACOMPANHAMENTO,
+            requiredMessage: 'A duração desenha a jornada do mentorado.',
             payloadPath: 'produto.duracao_acompanhamento',
           },
           {
@@ -709,6 +748,7 @@ const RAW_STEPS = [
             type: 'radio',
             label: 'Quanto tempo por semana você deseja dedicar à entrega dessa mentoria?',
             options: CARGA_HORARIA_SEMANAL,
+            requiredMessage: 'O que cabe na sua semana define o formato da entrega.',
             payloadPath: 'produto.carga_horaria_semanal',
           },
           {
@@ -755,6 +795,7 @@ const RAW_STEPS = [
             label: 'O que você precisaria saber sobre um novo cliente antes de dizer o que ele deve fazer?',
             helper: 'Quais informações mudariam sua recomendação?',
             minLength: 20,
+            requiredMessage: 'É isso que vai alimentar o seu diagnóstico.',
             payloadPath: 'entrega.briefing_necessario',
           },
           {
@@ -767,6 +808,7 @@ const RAW_STEPS = [
               text: 'A IA poderá criar uma classificação personalizada com base no seu método.',
               visibleIf: (a) => a.entrega_tem_niveis === 'nao' || a.entrega_tem_niveis === 'nao_sei',
             },
+            requiredMessage: 'Precisamos saber se os seus clientes chegam em estágios diferentes.',
             payloadPath: 'entrega.tem_niveis',
           },
           {
@@ -778,6 +820,7 @@ const RAW_STEPS = [
             rows: 3,
             visibleIf: (a) => a.entrega_tem_niveis === 'sim',
             requiredIf: (a) => a.entrega_tem_niveis === 'sim',
+            requiredMessage: 'Você disse que existem níveis. Descreve eles para a gente.',
             payloadPath: 'entrega.niveis_descricao',
           },
         ],
@@ -793,6 +836,7 @@ const RAW_STEPS = [
             label: 'Qual frequência de Hot Seat você prefere?',
             options: FREQUENCIA_HOT_SEAT,
             aiFallback: 'Quero recomendação',
+            requiredMessage: 'O ritmo do Hot Seat é o batimento da mentoria.',
             payloadPath: 'entrega.frequencia_hot_seat',
           },
           {
@@ -803,6 +847,7 @@ const RAW_STEPS = [
             helper: 'Pode marcar mais de uma opção.',
             options: SUPORTE_ENTRE_ENCONTROS,
             min: 1,
+            requiredMessage: 'Marca como o mentorado te alcança entre um encontro e outro.',
             payloadPath: 'entrega.suporte_entre_encontros',
           },
         ],

@@ -144,6 +144,22 @@ function score(v, min = 0, max = ESCALA_PUBLICO.max) {
 export const MAX_TEXT_LENGTH = 4000
 
 /**
+ * Teto da descrição de cada público (Q12). O card da tela não impõe limite
+ * próprio hoje (`maxLength: 0`), então aqui vale o teto absoluto — cortar uma
+ * descrição legítima seria pior do que deixá-la longa.
+ */
+const AUDIENCE_MAX_LENGTH = FIELD_BY_ID.persona_publicos && FIELD_BY_ID.persona_publicos.maxLength > 0
+  ? FIELD_BY_ID.persona_publicos.maxLength
+  : MAX_TEXT_LENGTH
+
+/** Teto do complemento de "Outro" (o input da tela também usa 160). */
+const OTHER_MAX_LENGTH = 160
+
+/** Teto do nome e do e-mail do participante (não são campos do schema). */
+const NAME_MAX_LENGTH = 160
+const EMAIL_MAX_LENGTH = 254
+
+/**
  * Texto cortado no menor limite entre o do campo e `MAX_TEXT_LENGTH`.
  * @param {*} v Valor bruto.
  * @param {number} [max] Limite do campo (0/ausente = só o teto absoluto).
@@ -232,17 +248,20 @@ export function normalizePhoneBR(value) {
   const original = str(value)
   if (!original) return ''
 
-  // Código de país declarado: só +55 (ou 0055) segue adiante.
+  // Código de país DECLARADO com "+": só +55 segue adiante. Sem o "+" o número
+  // estrangeiro cai nas regras de DDD/celular abaixo e é recusado do mesmo jeito.
   const compacto = original.replace(/[\s().\-–—/]/g, '')
   if (compacto.startsWith('+') && !compacto.startsWith('+55')) return ''
-  if (compacto.startsWith('00') && !compacto.startsWith('0055')) return ''
 
+  // Daqui para baixo é o MESMO desmonte de `state/phone.js` (toLocalDigits):
+  // o que a tela aceita, o payload aceita — nunca o contrário.
   let digits = original.replace(/\D/g, '')
   if (!digits) return ''
   if (digits.length > 12 && digits.startsWith('0055')) digits = digits.slice(4)
   if (digits.length > 11 && digits.startsWith('55')) digits = digits.slice(2)
   // "0" de tronco/operadora: 011 91234-5678. Nenhum DDD válido começa com 0.
   while (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1)
+  digits = digits.slice(0, 11)
 
   if (digits.length !== 10 && digits.length !== 11) return ''
   if (/^(\d)\1+$/.test(digits)) return ''
@@ -282,14 +301,35 @@ export function formatPhoneBR(value) {
  * @type {ReadonlyArray<{ key: string, when: (answers: Object) => boolean }>}
  */
 export const AI_DELEGATION_RULES = Object.freeze([
-  { key: 'persona.escolha', when: (a) => bool(a.persona_escolha_delegada_ia) },
+  /* Vale tanto para quem pediu ("quero que a IA avalie") quanto para quem ficou
+     sem escolha válida — ver `resolvePublicoEscolhido`. Nos dois casos quem
+     escolhe o público é a IA, e `persona.publico_escolhido` vem "". */
+  { key: 'persona.escolha', when: (a) => resolvePublicoEscolhido(a).delegar },
   { key: 'persona.tipo_cliente', when: (a) => a.persona_tipo_cliente === 'nao_sei' },
+  /* "Outro / Não sei" das faixas é um não-sei como qualquer outro. O complemento
+     (`persona.pf.faixa_renda_outro` / `persona.pj.faixa_faturamento_outro`) diz
+     qual dos dois é: com texto, foi "Outro" e está descrito ali; vazio, é
+     "não sei" de verdade e a IA estima a faixa pelo resto do briefing. */
+  {
+    key: 'persona.faixa_renda',
+    when: (a) => a.persona_pf_faixa_renda === 'outro'
+      && isFieldVisible(FIELD_BY_ID.persona_pf_faixa_renda, a),
+  },
+  {
+    key: 'persona.faixa_faturamento',
+    when: (a) => a.persona_pj_faixa_faturamento === 'outro'
+      && isFieldVisible(FIELD_BY_ID.persona_pj_faixa_faturamento, a),
+  },
   { key: 'transformacao.prazo', when: (a) => a.transformacao_prazo_estimado === 'nao_sei' },
   { key: 'metodo.passos', when: (a) => bool(a.metodo_passos_delegados_ia) },
   { key: 'metodo.nome', when: (a) => a.metodo_tem_nome === 'nao' },
   { key: 'produto.modelo', when: (a) => a.produto_modelo === 'nao_sei' },
   { key: 'produto.duracao', when: (a) => a.produto_duracao_acompanhamento === 'nao_sei' },
   { key: 'produto.carga_horaria', when: (a) => a.produto_carga_horaria_semanal === 'nao_sei' },
+  /* "nao" e "nao_sei" geram a MESMA delegação de propósito: nos dois casos a IA
+     precisa propor os níveis. O que muda é o tom, e isso se lê em
+     `entrega.tem_niveis`: "nao" = ele afirma que não existem níveis (proponha
+     com parcimônia, ou nenhum); "nao_sei" = ele não sabe (proponha e explique). */
   {
     key: 'entrega.niveis',
     when: (a) => a.entrega_tem_niveis === 'nao' || a.entrega_tem_niveis === 'nao_sei',
@@ -408,11 +448,21 @@ function buildClient(session) {
 }
 
 function buildLastro(answers) {
+  /* Escape marcada = confissão de ausência. O texto que a pessoa tinha escrito
+     ANTES de marcar continua guardado no aparelho dela (desmarcar devolve tudo),
+     mas não viaja: "ainda não gerei resultado para terceiros" chegando junto de
+     um depoimento é contradição que a IA repassaria no WhatsApp. Mesma regra já
+     aplicada em `metodo.passos`, `metodo.nome` e `entrega.niveis_descricao`. */
+  const terceirosAusente = bool(answers.lastro_terceiros_ausente)
+  const repeticaoAusente = bool(answers.lastro_repeticao_ausente)
+
   return {
     forca: text(answers, 'lastro_forca'),
     maior_resultado_proprio: text(answers, 'lastro_maior_resultado_proprio'),
-    melhor_resultado_terceiros: text(answers, 'lastro_melhor_resultado_terceiros'),
-    melhor_resultado_terceiros_ausente: bool(answers.lastro_terceiros_ausente),
+    melhor_resultado_terceiros: terceirosAusente
+      ? ''
+      : text(answers, 'lastro_melhor_resultado_terceiros'),
+    melhor_resultado_terceiros_ausente: terceirosAusente,
     narrativa: {
       antes: text(answers, 'lastro_narrativa_antes'),
       dificuldade: text(answers, 'lastro_narrativa_dificuldade'),
@@ -420,15 +470,17 @@ function buildLastro(answers) {
       virada: text(answers, 'lastro_narrativa_virada'),
       novas_acoes: text(answers, 'lastro_narrativa_novas_acoes'),
       resultado_gerado: text(answers, 'lastro_narrativa_resultado_gerado'),
-      repeticao: text(answers, 'lastro_narrativa_repeticao'),
-      repeticao_ausente: bool(answers.lastro_repeticao_ausente),
+      repeticao: repeticaoAusente ? '' : text(answers, 'lastro_narrativa_repeticao'),
+      repeticao_ausente: repeticaoAusente,
     },
   }
 }
 
 /**
  * Normaliza os até 3 públicos avaliados na Etapa 2.
- * @returns {{ publicos: Array<Object>, maiorScore: string, byId: Record<string, Object> }}
+ * @returns {{ publicos: Array<Object>, descritos: string[], maiorScore: string,
+ *            maiorScoreEmpate: string[], maiorScoreTotal: number,
+ *            byId: Record<string, Object> }}
  */
 function buildPublicos(answers) {
   const source = answers.persona_publicos && typeof answers.persona_publicos === 'object'
@@ -440,7 +492,7 @@ function buildPublicos(answers) {
 
   for (const id of PUBLICO_IDS) {
     const entry = source[id] && typeof source[id] === 'object' ? source[id] : {}
-    const descricao = str(entry.descricao)
+    const descricao = clamp(entry.descricao, AUDIENCE_MAX_LENGTH)
     const scores = {}
     let total = 0
     for (const criterio of CRITERIOS_PUBLICO) {
@@ -462,31 +514,89 @@ function buildPublicos(answers) {
     if (descricao !== '' || total > 0) publicos.push(item)
   }
 
-  let maiorScore = ''
-  let best = 0
-  for (const item of publicos) {
-    if (item.score_total > best) {
-      best = item.score_total
-      maiorScore = item.id
+  /* "Maior potencial" é selo de público PREENCHIDO. Um público com notas altas
+     e sem uma linha de descrição não é potencial nenhum: a IA não sabe quem é.
+     Sem o filtro, o payload apontava um público que a tela nem exibia. */
+  const elegiveis = publicos.filter((item) => item.preenchido)
+  const maiorScoreTotal = elegiveis.reduce((max, item) => Math.max(max, item.score_total), 0)
+  const maiorScoreEmpate = maiorScoreTotal > 0
+    ? elegiveis.filter((item) => item.score_total === maiorScoreTotal).map((item) => item.id)
+    : []
+  /* Com empate, `maior_score` continua trazendo o primeiro na ordem A > B > C
+     (quem já lê o campo não quebra) e `maior_score_empate` conta a verdade:
+     houve empate, a decisão é da IA. Sem empate, a lista vem []. */
+  const maiorScore = maiorScoreEmpate.length > 0 ? maiorScoreEmpate[0] : ''
+
+  return {
+    publicos,
+    descritos: publicos.filter((item) => item.descricao !== '').map((item) => item.id),
+    maiorScore,
+    maiorScoreEmpate: maiorScoreEmpate.length > 1 ? maiorScoreEmpate : [],
+    maiorScoreTotal,
+    byId,
+  }
+}
+
+/**
+ * Resolve a escolha de público de forma coerente com o que foi DESCRITO.
+ *
+ * Regra de ouro: `publico_escolhido` só pode ser um público com descrição, ou ''.
+ * Quando fica '', a escolha passa para a IA (`delegar_escolha_ia: true` e
+ * "persona.escolha" em `ai_delegations`) — é melhor a IA escolher com o que
+ * existe do que receber "construa para o PÚBLICO C" sem uma linha sobre o C.
+ *
+ * @param {Object} [answers] Mapa `{ [fieldId]: value }`.
+ * @returns {{ id: string, descricao: string, origem: string, delegar: boolean }}
+ *   `origem`: 'participante' | 'unico_publico_descrito' | 'delegado_ia'
+ *           | 'descartado_sem_descricao' | 'indefinido'.
+ */
+export function resolvePublicoEscolhido(answers = {}) {
+  const { descritos, byId } = buildPublicos(answers)
+  const descricaoDe = (id) => (byId[id] ? byId[id].descricao : '')
+
+  if (bool(answers.persona_escolha_delegada_ia)) {
+    return { id: '', descricao: '', origem: 'delegado_ia', delegar: true }
+  }
+
+  const escolhido = enumOf(answers, 'persona_publico_escolhido')
+  if (escolhido && descritos.includes(escolhido)) {
+    return { id: escolhido, descricao: descricaoDe(escolhido), origem: 'participante', delegar: false }
+  }
+
+  // Um público descrito só: não há escolha a fazer (a Q13 nem aparece na tela).
+  if (descritos.length === 1) {
+    return {
+      id: descritos[0],
+      descricao: descricaoDe(descritos[0]),
+      origem: 'unico_publico_descrito',
+      delegar: false,
     }
   }
 
-  return { publicos, maiorScore, byId }
+  return {
+    id: '',
+    descricao: '',
+    origem: escolhido ? 'descartado_sem_descricao' : 'indefinido',
+    delegar: true,
+  }
 }
 
 function buildPersona(answers) {
-  const { publicos, maiorScore, byId } = buildPublicos(answers)
-  const delegado = bool(answers.persona_escolha_delegada_ia)
-  const escolhido = delegado ? '' : enumOf(answers, 'persona_publico_escolhido')
+  const { publicos, descritos, maiorScore, maiorScoreEmpate, maiorScoreTotal } = buildPublicos(answers)
+  const escolha = resolvePublicoEscolhido(answers)
   const tipoCliente = enumOf(answers, 'persona_tipo_cliente')
 
   return {
     quem_deseja_resultado: text(answers, 'persona_quem_deseja_resultado'),
     publicos,
-    publico_escolhido: escolhido,
-    publico_escolhido_descricao: escolhido && byId[escolhido] ? byId[escolhido].descricao : '',
-    delegar_escolha_ia: delegado,
+    publicos_descritos: descritos,
+    publico_escolhido: escolha.id,
+    publico_escolhido_descricao: escolha.descricao,
+    publico_escolhido_origem: escolha.origem,
+    delegar_escolha_ia: escolha.delegar,
     maior_score: maiorScore,
+    maior_score_total: maiorScoreTotal,
+    maior_score_empate: maiorScoreEmpate,
     tipo_cliente: tipoCliente,
     tipo_cliente_label: labelOf(TIPO_CLIENTE, tipoCliente),
     pf: {
@@ -494,7 +604,7 @@ function buildPersona(answers) {
       faixa_renda: enumOf(answers, 'persona_pf_faixa_renda'),
       faixa_renda_label: labelOf(FAIXA_RENDA_PF, enumOf(answers, 'persona_pf_faixa_renda')),
       faixa_renda_outro: isFieldVisible(FIELD_BY_ID.persona_pf_faixa_renda, answers)
-        ? str(answers.persona_pf_faixa_renda_outro)
+        ? clamp(answers.persona_pf_faixa_renda_outro, OTHER_MAX_LENGTH)
         : '',
     },
     pj: {
@@ -505,7 +615,7 @@ function buildPersona(answers) {
         enumOf(answers, 'persona_pj_faixa_faturamento'),
       ),
       faixa_faturamento_outro: isFieldVisible(FIELD_BY_ID.persona_pj_faixa_faturamento, answers)
-        ? str(answers.persona_pj_faixa_faturamento_outro)
+        ? clamp(answers.persona_pj_faixa_faturamento_outro, OTHER_MAX_LENGTH)
         : '',
     },
     dor_principal: text(answers, 'persona_dor_principal'),
@@ -530,10 +640,15 @@ function buildMetodo(answers) {
   const passosDelegados = bool(answers.metodo_passos_delegados_ia)
   const temNome = enumOf(answers, 'metodo_tem_nome')
   return {
-    erros_comuns: strList(raw(answers, 'metodo_erros_comuns')),
+    erros_comuns: strList(
+      raw(answers, 'metodo_erros_comuns'),
+      FIELD_BY_ID.metodo_erros_comuns.itemMaxLength,
+    ),
     por_que_falham: text(answers, 'metodo_por_que_falham'),
     o_que_precisa_ser_diferente: text(answers, 'metodo_o_que_precisa_ser_diferente'),
-    passos: passosDelegados ? [] : strList(raw(answers, 'metodo_passos')),
+    passos: passosDelegados
+      ? []
+      : strList(raw(answers, 'metodo_passos'), FIELD_BY_ID.metodo_passos.itemMaxLength),
     passos_delegados_ia: passosDelegados,
     tem_nome: temNome === 'sim',
     nome: temNome === 'sim' ? text(answers, 'metodo_nome') : '',
@@ -619,10 +734,10 @@ export function buildPayload({ answers = {}, identity = {}, session = {}, progre
       client: buildClient(session),
     },
     participant: {
-      name: str(identity.name),
+      name: clamp(identity.name, NAME_MAX_LENGTH),
       whatsapp,
       whatsapp_display: whatsapp ? formatPhoneBR(whatsapp) : '',
-      email: str(identity.email).toLowerCase(),
+      email: clamp(identity.email, EMAIL_MAX_LENGTH).toLowerCase(),
     },
     lastro: buildLastro(answers),
     persona: buildPersona(answers),

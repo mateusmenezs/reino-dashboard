@@ -22,7 +22,12 @@ const mentoria = isMentoriaRoute()
 
 // O CSS global do dashboard pinta o body de azul-marinho. O construtor tem
 // direção visual própria (clara), então marcamos o body antes do primeiro paint.
-if (mentoria) document.body.classList.add('mentoria-page')
+// O título também é definido aqui, e não dentro do chunk da rota: em 3G ruim o
+// chunk só chega ~1,3s depois, e até lá a aba mostraria o nome do dashboard.
+if (mentoria) {
+  document.body.classList.add('mentoria-page')
+  document.title = 'Crie sua Mentoria com IA · Reino'
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
