@@ -10,7 +10,7 @@
  */
 
 import * as Schema from '../schema/questions.js';
-import { checkPhoneBR, PHONE_REASON } from './phone.js';
+import { checkPhoneBR } from './phone.js';
 
 /* ------------------------------------------------------------------ */
 /* acesso tolerante ao schema (AGENTE A é o dono)                      */
