@@ -143,20 +143,26 @@ function countStep(step, answers) {
   const fields = getVisibleScreens(step, answers).flatMap((screen) =>
     getVisibleFields(screen, answers),
   )
-  let answered = 0
-  let delegated = 0
-  let pending = 0
+  let answered = 0   // respondidas de próprio punho
+  let delegated = 0  // entregues à IA por uma saída marcada
+  let pending = 0    // obrigatórias ainda em aberto
   for (const field of fields) {
-    const escaped = isFieldEscaped(field, answers)
-    if (escaped) {
+    if (isFieldEscaped(field, answers)) {
       delegated += 1
-      answered += 1
       continue
     }
     if (hasAnswer(field, answers)) answered += 1
     else if (isFieldRequired(field, answers)) pending += 1
   }
-  return { fields, answered, total: fields.length, delegated, pending, done: pending === 0 }
+  return {
+    fields,
+    answered,
+    delegated,
+    pending,
+    filled: answered + delegated,
+    total: fields.length,
+    done: pending === 0,
+  }
 }
 
 /** Linha de status da etapa. Nunca diz "sem pendências" com pergunta em aberto. */
@@ -165,8 +171,8 @@ function statusOf(counts) {
     return {
       text:
         counts.pending === 1
-          ? `${counts.answered} de ${counts.total} · falta 1`
-          : `${counts.answered} de ${counts.total} · faltam ${counts.pending}`,
+          ? `${counts.filled} de ${counts.total} · falta 1`
+          : `${counts.filled} de ${counts.total} · faltam ${counts.pending}`,
       tone: 'pending',
     }
   }

@@ -43,7 +43,7 @@
  * toque. Nada é escondido: a linha fechada mostra o que já foi respondido.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Icon,
@@ -62,6 +62,7 @@ export const AUDIENCE_COPY = Object.freeze({
   optional: 'opcional',
   scoreLabel: (total, maxTotal) => `${total}/${maxTotal}`,
   scoreAria: (audience, total, maxTotal) => `${audience}: ${total} de ${maxTotal} pontos.`,
+  scoreShort: (total, maxTotal) => `${total} de ${maxTotal} pontos`,
   scorePending: 'Dê as três notas para fechar a pontuação.',
   /* Rótulos das pontas da escala. Precisam ser PALAVRA: a primitiva monta o
      nome acessível como "valor — rótulo", e "1 — 1" / "5 — 5" não informa nada.
@@ -71,8 +72,6 @@ export const AUDIENCE_COPY = Object.freeze({
   /* Empate: informa sem eleger ninguém. */
   tie: 'Empate técnico',
   empty: 'Ainda não descrito',
-  expand: (label) => `Abrir ${label.toLocaleLowerCase('pt-BR')}`,
-  collapse: (label) => `Fechar ${label.toLocaleLowerCase('pt-BR')}`,
 })
 
 const asText = (v) => String(v == null ? '' : v)
@@ -179,15 +178,25 @@ export function AudienceCards({
 
   const [openId, setOpenId] = useState(firstOpen)
 
+  /* leitura viva das linhas, para o efeito abaixo não depender do array novo
+     que `useMemo` devolve a cada render */
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+
   /* Erro de validação não pode apontar para um cartão fechado: o campo que
-     falta tem de estar à vista quando o foco chega aqui. */
+     falta tem de estar à vista quando o foco chega aqui.
+     Só na VIRADA para inválido — reagir a cada render prenderia a pessoa no
+     cartão pendente e ela não conseguiria abrir o B para comparar. */
+  const wasInvalid = useRef(false)
   useEffect(() => {
-    if (!invalid) return
-    const pending = rows.find(
+    const turned = invalid && !wasInvalid.current
+    wasInvalid.current = Boolean(invalid)
+    if (!turned) return
+    const pending = rowsRef.current.find(
       (r) => requiredAudiences.includes(r.audience.value) && !r.complete,
     )
     if (pending) setOpenId(pending.audience.value)
-  }, [invalid, rows, requiredAudiences])
+  }, [invalid, requiredAudiences])
 
   const toggle = useCallback(
     (audienceId) => setOpenId((current) => (current === audienceId ? null : audienceId)),
@@ -263,8 +272,20 @@ export function AudienceCards({
               onClick={() => toggle(audienceId)}
               aria-expanded={open}
               aria-controls={bodyId}
+              /* Fechado, o gatilho É o resumo: o leitor de tela precisa ouvir o
+                 que está escrito ali (descrição + pontuação), não só "abrir".
+                 O estado de abrir/fechar já vem de `aria-expanded`. */
               aria-label={
-                open ? AUDIENCE_COPY.collapse(row.audience.label) : AUDIENCE_COPY.expand(row.audience.label)
+                open
+                  ? row.audience.label
+                  : [
+                      row.audience.label,
+                      isOptional ? AUDIENCE_COPY.optional : null,
+                      row.described ? row.descricao : AUDIENCE_COPY.empty,
+                      row.described ? AUDIENCE_COPY.scoreShort(row.total, maxTotal) : null,
+                    ]
+                      .filter(Boolean)
+                      .join('. ')
               }
               style={{
                 display: 'flex',
@@ -280,7 +301,9 @@ export function AudienceCards({
                 cursor: disabled ? 'default' : 'pointer',
                 fontFamily: font.family,
                 WebkitTapHighlightColor: 'transparent',
-                outline: 'revert',
+                /* sem `outline` inline: o anel de foco vem da regra
+                   `.mentoria-root :focus-visible` da folha do construtor, e
+                   estilo inline aqui a sobrescreveria. */
               }}
             >
               <span style={{ flex: '1 1 auto', minWidth: 0 }}>

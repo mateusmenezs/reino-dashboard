@@ -201,19 +201,25 @@ export function Note({ tone = 'info', children, icon = null, style }) {
  * aviso (não usa `Note`, não tem `role="alert"`), não pede ação e não tem
  * botão de fechar — é uma frase discreta acima do conteúdo.
  */
-let resumeClaimed = false
+/**
+ * A "dona" do reconhecimento é uma instância, não um booleano: o StrictMode
+ * do React 18 renderiza o componente duas vezes: um booleano `claimed` seria
+ * consumido na primeira passada e a linha nunca apareceria. Comparando com o
+ * ref da instância, a mesma tela continua dona nas duas passadas e QUALQUER
+ * outra (a tela seguinte) já encontra o lugar ocupado.
+ */
+let resumeOwner = null
 
-/** Reabre o reconhecimento (usado só por teste manual e pelo reset do store). */
+/** Reabre o reconhecimento (para teste manual e para o "recomeçar do zero"). */
 export function resetResumeNotice() {
-  resumeClaimed = false
+  resumeOwner = null
 }
 
 export function ResumeNotice({ restored, where, style }) {
-  const [mine] = React.useState(() => {
-    if (!restored || resumeClaimed) return false
-    resumeClaimed = true
-    return true
-  })
+  const token = React.useRef(null)
+  if (token.current === null) token.current = {}
+  const mine = Boolean(restored) && (resumeOwner === null || resumeOwner === token.current)
+  if (mine) resumeOwner = token.current
   if (!mine || !where) return null
   return (
     <p

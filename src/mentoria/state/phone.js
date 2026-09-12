@@ -34,7 +34,45 @@ export const PHONE_REASON = Object.freeze({
   DDD: 'ddd',
   MOBILE: 'mobile',
   REPEATED: 'repeated',
+  /** Número de OUTRO país, declarado com "+". Nunca vira número brasileiro. */
+  COUNTRY: 'country',
 });
+
+/**
+ * A entrada DECLARA um código de país estrangeiro?
+ *
+ * Por que existe: sem esta checagem, "+54 9 11 1234-5678" (Argentina) perdia os
+ * símbolos, virava "(54) 91112-3456" — um celular de Caxias do Sul que não
+ * existe — e o Blueprint iria para o número errado. A decisão tem que acontecer
+ * ANTES de descartar o "+", que é a única pista de que o número é de fora.
+ *
+ * Enquanto o código ainda está sendo digitado ("+", "+5") não dá para condenar:
+ * "+5" ainda pode virar "+55". Só a partir do terceiro caractere há veredito.
+ *
+ * Mesma regra da cópia defensiva em `schema/payload.js`: o que a tela recusa,
+ * o payload recusa.
+ *
+ * @param {string} value entrada crua, como foi digitada ou colada
+ * @returns {boolean}
+ */
+export function hasForeignCountryCode(value) {
+  const compact = compactPhoneInput(value);
+  if (!compact.startsWith('+')) return false;
+  if (compact.length < 3) return false; // "+", "+5": ainda pode virar "+55"
+  return !compact.startsWith('+55');
+}
+
+/**
+ * Entrada sem espaço nem pontuação, PRESERVANDO o "+".
+ * Serve para decidir o país e para a tela poder mostrar de volta o que a pessoa
+ * colou, em vez de uma máscara brasileira inventada.
+ * @param {string} value
+ * @returns {string}
+ */
+export function compactPhoneInput(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).trim().replace(/[\s().\-–—/]/g, '');
+}
 
 /** Só os dígitos de uma entrada qualquer. */
 export function onlyDigits(value) {
@@ -48,7 +86,11 @@ export function onlyDigits(value) {
  * @param {string} value
  * @returns {string} até 11 dígitos
  */
-export function toLocalDigits(value) {
+function stripPrefixes(value) {
+  // Número estrangeiro não é "adaptado": é recusado inteiro. Devolver os dígitos
+  // aqui seria transformá-lo num telefone brasileiro que não existe.
+  if (hasForeignCountryCode(value)) return '';
+
   let d = onlyDigits(value);
   if (!d) return '';
 
@@ -59,7 +101,13 @@ export function toLocalDigits(value) {
   // 0 de tronco / operadora: 011 91234-5678 (nenhum DDD válido começa com 0)
   while (d.length > 10 && d.startsWith('0')) d = d.slice(1);
 
-  return d.slice(0, 11);
+  return d;
+}
+
+export function toLocalDigits(value) {
+  // O corte em 11 é da MÁSCARA: digitar o 12º dígito não deve mexer na tela.
+  // Quem valida usa stripPrefixes() direto e enxerga o excesso (ver checkPhoneBR).
+  return stripPrefixes(value).slice(0, 11);
 }
 
 /**
@@ -85,7 +133,13 @@ export const maskPhoneBR = formatPhoneBR;
  * @returns {{ ok:boolean, reason:string, digits:string, ddd:string, isMobile:boolean }}
  */
 export function checkPhoneBR(value) {
-  const digits = toLocalDigits(value);
+  if (hasForeignCountryCode(value)) {
+    return { ok: false, reason: PHONE_REASON.COUNTRY, digits: '', ddd: '', isMobile: false };
+  }
+
+  // Aqui NÃO se trunca: "5491112345678" (13 dígitos, um argentino digitado sem
+  // o "+") não pode virar "(54) 91112-3456" só porque sobrou no corte da máscara.
+  const digits = stripPrefixes(value);
   const base = { ok: false, reason: PHONE_REASON.EMPTY, digits, ddd: digits.slice(0, 2), isMobile: false };
 
   if (!digits) return base;
@@ -153,6 +207,8 @@ export function maskForDisplay(value) {
 export default {
   VALID_DDDS,
   PHONE_REASON,
+  hasForeignCountryCode,
+  compactPhoneInput,
   onlyDigits,
   toLocalDigits,
   formatPhoneBR,

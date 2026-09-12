@@ -48,6 +48,21 @@ const isFieldRequired =
 
 const hasAnswer = Schema.hasAnswer || ((field, answers) => String(answers[field.id] ?? '').trim() !== '');
 
+/**
+ * Opções VÁLIDAS AGORA para o campo. A pergunta 13, por exemplo, só oferece os
+ * públicos que foram descritos — por isso nunca lemos `field.options` direto.
+ */
+const getFieldOptions =
+  Schema.getFieldOptions ||
+  ((field, answers) => {
+    if (!field) return [];
+    if (typeof field.optionsIf === 'function') {
+      const dynamic = field.optionsIf(answers);
+      if (Array.isArray(dynamic)) return dynamic;
+    }
+    return Array.isArray(field.options) ? field.options : [];
+  });
+
 /* ------------------------------------------------------------------ */
 /* microcopy                                                           */
 /* ------------------------------------------------------------------ */
@@ -71,6 +86,7 @@ export const MESSAGES = Object.freeze({
   },
   long: 'Ficou um pouco longo. Resume nos pontos principais.',
   other: 'Conta qual é, em poucas palavras.',
+  unknownOption: 'Essa opção não está mais disponível. Escolhe uma das que aparecem aqui.',
   scores: 'Falta dar as notas de 1 a 5 desse público.',
   min: {
     multiselect: 'Marca pelo menos duas opções.',
@@ -87,6 +103,7 @@ export const MESSAGES = Object.freeze({
     long: 'Esse número ficou com dígitos demais. Confere pra gente?',
     mobile: 'Confere esse número? Celular tem o 9 logo depois do DDD.',
     repeated: 'Esse número não parece real. Confere pra gente?',
+    country: 'Por enquanto só conseguimos enviar para WhatsApp do Brasil. Coloca um número com DDD brasileiro.',
     generic: 'Confere esse número? Ele precisa ter DDD.',
   },
   email: {
@@ -201,9 +218,39 @@ function validateTextLike(field, value, required) {
   return null;
 }
 
+/** Valores que o campo aceita AGORA (inclui a opção "outro", que é à parte). */
+function allowedValues(field, answers) {
+  let options = [];
+  try {
+    options = getFieldOptions(field, answers) || [];
+  } catch (_e) {
+    options = [];
+  }
+  const values = options
+    .map((o) => (o && typeof o === 'object' ? o.value : o))
+    .filter((v) => v !== undefined && v !== null && String(v) !== '')
+    .map(String);
+  if (field.otherOption && field.otherOption.value) values.push(String(field.otherOption.value));
+  return values;
+}
+
 function validateChoice(field, value, required, answers) {
   const v = str(value);
   if (!v) return required ? err(requiredMessageFor(field), 'empty', field.id) : null;
+
+  /*
+   * A resposta precisa ser UMA DAS OPÇÕES que existem agora. Sem isto, um valor
+   * órfão — estado restaurado de uma versão antiga do schema, localStorage
+   * adulterado, opção que deixou de existir, público que o participante apagou
+   * depois de escolher — atravessava a validação e chegava ao n8n como um enum
+   * que a IA e os IF do fluxo não sabem tratar.
+   * Campo sem lista conhecida (product-cards com catálogo próprio, tipo novo)
+   * não ganha regra inventada: só cobramos presença.
+   */
+  const permitidos = allowedValues(field, answers);
+  if (permitidos.length > 0 && permitidos.indexOf(v) === -1) {
+    return err(MESSAGES.unknownOption, 'option', field.id);
+  }
 
   if (field.otherOption && v === field.otherOption.value) {
     const otherId = field.otherOption.placeholderFieldId;
@@ -291,7 +338,13 @@ function validateAudienceCards(field, value, required) {
     const descricao = str((data[id] || {}).descricao);
     if (!descricao) {
       if (!required) break;
-      return err(`Descreve o ${labelOf(id)} para a gente conseguir comparar.`, 'empty', field.id);
+      // O schema traz a mensagem específica desta pergunta (requiredMessage);
+      // ela vale para o primeiro público exigido. Se um dia B/C também forem
+      // obrigatórios, os demais continuam identificados pelo rótulo.
+      const message = i === 0
+        ? requiredMessageFor(field)
+        : `Descreve o ${labelOf(id)} para a gente conseguir comparar.`;
+      return err(message, 'empty', field.id);
     }
     if (minLength > 0 && descricao.length < minLength) {
       return err(`${labelOf(id)}: ${MESSAGES.short.audience}`, 'short', field.id);

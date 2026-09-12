@@ -278,14 +278,17 @@ const BUTTON_SIZES = {
   md: {
     height: control.heightMd,
     padding: '0 16px',
-    label: 'clamp(14px, 4.1vw, 17px)',
+    label: 'clamp(14px, 4vw, 17px)',
     radius: radius.md,
     gap: '8px',
   },
   lg: {
     height: control.heightLg,
     padding: '0 16px',
-    label: 'clamp(14px, 4.4vw, 17px)',
+    /* medido: "CRIAR MINHA MENTORIA COM IA →" ocupa 250px a 13px e a
+       caixa útil em 320px tem 256px — daí o piso de 13px e a inclinação
+       de 4vw (13px em 320, 15.6px em 390, 17px de 425 em diante). */
+    label: 'clamp(13px, 4vw, 17px)',
     radius: radius.lg,
     gap: '8px',
   },

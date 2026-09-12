@@ -10,7 +10,7 @@
  *
  * Regras de produto:
  * - Marcar a escape NÃO é desistir: quando `escape.ai === true` é uma escolha
- *   estratégica (delegação), e o visual carrega o tom azul da ação para dizer isso.
+ *   estratégica (delegação), e o selo "Feito com a IA" acima da linha diz isso.
  * - Marcar NUNCA apaga a resposta já digitada — quem apaga seria o store, e ele
  *   não é chamado aqui. Este componente só liga/desliga o booleano da escape.
  * - A linha inteira é alvo de toque (CheckboxRow estica o <input> nativo sobre

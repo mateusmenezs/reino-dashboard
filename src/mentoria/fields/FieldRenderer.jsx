@@ -468,7 +468,7 @@ function FieldRendererBody({
   )
 
 
-  return (
+  const shell = (
     <FieldShell
       id={field.id}
       label={field.label}
@@ -508,15 +508,25 @@ function FieldRendererBody({
         {noticeVisible ? <FieldNotice id={`${field.id}-notice`} text={field.notice.text} /> : null}
       </div>
 
-      {escape ? (
-        <EscapeToggle
-          escape={escape}
-          checked={escaped}
-          onChange={handleEscape}
-          disabled={disabled}
-        />
-      ) : null}
     </FieldShell>
+  )
+
+  /* A saída fica FORA do FieldShell de propósito: o shell desenha a mensagem
+     de erro depois dos filhos, e com a escape dentro a mensagem aparecia
+     embaixo dela — longe das opções que ela reprova. Fora, a ordem de leitura
+     vira controle → erro → saída, que é onde o erro nasceu. */
+  if (!escape) return shell
+
+  return (
+    <React.Fragment>
+      {shell}
+      <EscapeToggle
+        escape={escape}
+        checked={escaped}
+        onChange={handleEscape}
+        disabled={disabled}
+      />
+    </React.Fragment>
   )
 }
 
