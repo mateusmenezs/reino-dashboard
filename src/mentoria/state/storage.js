@@ -259,12 +259,27 @@ function mergeSession(mine, theirs, submission) {
 }
 
 /** Um envio concluído no disco vale mais do que um 'idle' desta aba. */
-function mergeSubmission(mine, theirs) {
+/**
+ * O 'success' do disco vence o 'idle' local — é o que impede uma aba obsoleta
+ * de reabilitar o botão de envio depois que outra aba já enviou.
+ *
+ * Mas sucesso pertence a UM envio, não à sessão inteira: quando o participante
+ * reabre o briefing para corrigir, ele recebe um submission_id novo, e o
+ * sucesso antigo não pode mais mandar nele. Sem esta checagem, a reabertura
+ * era revertida pela própria gravação seguinte.
+ */
+function mergeSubmission(mine, theirs, mySession, theirSession) {
   const m = isPlainObject(mine) ? mine : { status: 'idle' };
   const t = isPlainObject(theirs) ? theirs : null;
   if (!t) return m;
-  if (t.status === 'success' && m.status !== 'success') return { ...m, ...t };
-  return m;
+  if (t.status !== 'success' || m.status === 'success') return m;
+
+  const meuId = isPlainObject(mySession) ? mySession.submission_id : null;
+  const outroId = isPlainObject(theirSession) ? theirSession.submission_id : null;
+  // Envio novo (id diferente do que teve sucesso): o sucesso antigo não se aplica.
+  if (meuId && outroId && meuId !== outroId) return m;
+
+  return { ...m, ...t };
 }
 
 /**
@@ -282,7 +297,7 @@ function unionState(mine, other, base) {
   const answers = unionMap(mine.answers, other.answers, base && base.answers, adoptedAnswers);
   const identity = unionMap(mine.identity, other.identity, base && base.identity, adoptedIdentity);
 
-  const submission = mergeSubmission(mine.submission, other.submission);
+  const submission = mergeSubmission(mine.submission, other.submission, mine.session, other.session);
   const session = mergeSession(mine.session, other.session, submission);
   const sessionChanged = !!session && !!mine.session && session.session_id !== mine.session.session_id;
 

@@ -884,6 +884,31 @@ export function BriefingProvider({ children }) {
     trackOnce(`form_started:${fresh.session_id}`, 'form_started', { restarted: true });
   }, []);
 
+  /**
+   * Reabre o briefing depois de enviado, preservando TODAS as respostas.
+   *
+   * Enviar é um caminho sem volta por desenho (o guarda de `success` existe
+   * para impedir envio duplicado quando 20 pessoas tocam no botão ao mesmo
+   * tempo). Mas quem percebe um erro logo depois de enviar ficava sem saída:
+   * as respostas continuavam no aparelho e não havia como corrigir e reenviar.
+   *
+   * Aqui a submissão volta para 'idle' e ganha um submission_id NOVO — é uma
+   * submissão nova de verdade, e o n8n não deve deduplicá-la contra a
+   * anterior. A sessão continua a mesma, então dá para correlacionar as duas.
+   */
+  const reopenForEdit = useCallback(() => {
+    const anterior = sessionRef.current.submission_id;
+    const proxima = { ...sessionRef.current, submission_id: createId(), previous_submission_id: anterior };
+
+    submitLockRef.current = false;
+    setSession(proxima);
+    setSubmission({ status: 'idle', error: null, errorMessage: null, attempts: 0, sent_at: null });
+    setErrors({});
+    setNav({ stepIndex: STEPS.length - 1, screenIndex: 0, phase: 'review' });
+
+    track('reopened_for_edit', { previous_submission_id: anterior, submission_id: proxima.submission_id });
+  }, []);
+
   /* ---------------- valor do contexto ------------------------------ */
   const value = useMemo(
     () => ({
@@ -918,6 +943,7 @@ export function BriefingProvider({ children }) {
       retry,
       // manutenção
       resetAll,
+      reopenForEdit,
       saveState,
       storageAvailable,
       restored: initial.restored,
@@ -927,7 +953,7 @@ export function BriefingProvider({ children }) {
       answers, setAnswer, setAnswers, identity, setIdentity, session, progress,
       nav, goTo, goToField, next, back, tryNext, currentStep, currentScreen,
       visibleScreens, screenPhase, errors, clearErrors, validateCurrentScreen,
-      submission, submit, retry, resetAll, saveState, storageAvailable,
+      submission, submit, retry, resetAll, reopenForEdit, saveState, storageAvailable,
       initial.restored, eventStep,
     ],
   );

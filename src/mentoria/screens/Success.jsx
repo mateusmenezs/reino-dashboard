@@ -14,14 +14,15 @@
  * da tela. É o bloco que ele vai fotografar.
  */
 
-import React from 'react'
-import { Card, Icon, Reveal, SectionTitle, color, font, radius, shadow } from '../ui/index.js'
+import React, { useState } from 'react'
+import { Button, Card, Icon, Reveal, SectionTitle, color, font, radius, shadow } from '../ui/index.js'
 import { maskForDisplay } from '../state/phone.js'
 import { useBriefing } from '../state/store.jsx'
 import { Body, ScreenShell } from './Layout.jsx'
 
 export default function Success() {
-  const { identity } = useBriefing()
+  const { identity, reopenForEdit } = useBriefing()
+  const [confirmando, setConfirmando] = useState(false)
   const masked = maskForDisplay(identity.whatsapp || '')
 
   return (
@@ -123,6 +124,45 @@ export default function Success() {
         >
           Você acaba de transformar seu conhecimento em uma propriedade intelectual estruturada.
         </p>
+      </Reveal>
+
+      {/* Saída para quem percebeu um erro logo depois de enviar. Fica discreta
+          e exige dois toques: um toque acidental não pode reabrir o briefing
+          nem gerar um segundo envio. */}
+      <Reveal delay={260}>
+        <div style={{ marginTop: '40px', textAlign: 'center' }}>
+          {confirmando ? (
+            <div
+              style={{
+                border: `1px solid ${color.border}`,
+                borderRadius: radius.xl,
+                background: color.surface,
+                padding: '20px 18px',
+                textAlign: 'left',
+              }}
+            >
+              <p style={{ margin: 0, fontSize: font.size.base, fontWeight: font.weight.semibold, color: color.ink }}>
+                Reabrir para corrigir?
+              </p>
+              <p style={{ margin: '8px 0 16px', fontSize: font.size.sm, lineHeight: font.leading.relaxed, color: color.muted }}>
+                Suas respostas continuam salvas. Ao reenviar, nossa IA monta um novo Blueprint e
+                você recebe outra mensagem no WhatsApp.
+              </p>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <Button variant="secondary" full onClick={reopenForEdit}>
+                  Reabrir e corrigir
+                </Button>
+                <Button variant="ghost" full onClick={() => setConfirmando(false)}>
+                  Deixar como está
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="ghost" onClick={() => setConfirmando(true)}>
+              Preciso corrigir alguma resposta
+            </Button>
+          )}
+        </div>
       </Reveal>
     </ScreenShell>
   )
