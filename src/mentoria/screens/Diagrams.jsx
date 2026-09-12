@@ -178,7 +178,7 @@ export function FlowSteps({ items = [], label, style }) {
             {index === list.length - 1 ? null : (
               <span
                 aria-hidden="true"
-                style={{ flex: '1 1 auto', width: 2, minHeight: 16, marginTop: 8, background: color.border }}
+                style={{ flex: '1 1 auto', width: 2, minHeight: 16, marginTop: 8, background: color.borderStrong }}
               />
             )}
           </span>

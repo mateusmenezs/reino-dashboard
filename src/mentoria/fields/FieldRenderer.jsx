@@ -297,10 +297,17 @@ function MultiSelect({ id, field, value, onChange, options, disabled, labelledBy
 /* ==========================================================================
  * RADIO com saídas
  * As saídas ficam depois de um fio de 1px — o mesmo recurso que `ProductCards`
- * já usa para a opção de menor peso. Os dois subgrupos compartilham o `name`,
- * então as setas do teclado continuam percorrendo TODAS as opções como num
- * radiogroup único; o segundo grupo ganha um nome próprio (invisível) para o
- * leitor de tela não ouvir o mesmo rótulo duas vezes.
+ * já usa para a opção de menor peso.
+ *
+ * Por que os dois subgrupos têm `name` DIFERENTE: o `RadioGroup` do DS deriva o
+ * id de cada opção de `${name}-${índice}`, e os índices recomeçam do zero no
+ * segundo grupo. Com o mesmo `name`, "Não sei" nasceria com o id de "Sim" — e
+ * `<label for>` vence rótulo-envolvendo-input, então tocar na saída marcaria a
+ * primeira opção real. Com nomes distintos os ids são únicos, e a exclusão
+ * mútua continua garantida porque os dois grupos são CONTROLADOS pelo mesmo
+ * `value`: marcar num deles re-renderiza o outro desmarcado.
+ * O segundo grupo ganha um nome acessível próprio (invisível) para o leitor de
+ * tela não ouvir o mesmo rótulo duas vezes.
  * ======================================================================= */
 
 function RadioWithEscapes({ field, groupId, value, options, onChange, disabled, describedBy }) {
@@ -337,7 +344,7 @@ function RadioWithEscapes({ field, groupId, value, options, onChange, disabled, 
         {RENDERER_COPY.deferredGroup}
       </span>
       <RadioGroup
-        name={field.id}
+        name={`${field.id}__saidas`}
         value={asText(value)}
         onChange={(next) => onChange && onChange(next)}
         options={deferred}
