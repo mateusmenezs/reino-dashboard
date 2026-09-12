@@ -226,6 +226,9 @@ function textFieldStyle({ focused, invalid, disabled, reduced }) {
   }
 }
 
+/* useLayoutEffect só existe no cliente; no servidor cai para useEffect. */
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
+
 function mergeRefs(...refs) {
   return (node) => {
     for (const ref of refs) {
@@ -396,7 +399,7 @@ export const TextArea = forwardRef(function TextArea(
   /* Altura confortável por padrão: 4 linhas de 26px + respiro = 132px. */
   const minHeight = Math.max(rows * control.textareaLineHeight + 28, 108)
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!autoGrow) return
     const el = innerRef.current
     if (!el) return
@@ -529,7 +532,7 @@ function OptionRow({
         borderWidth: '1px',
         borderStyle: 'solid',
         borderColor: disabled ? color.disabledBorder : checked ? color.action : color.borderStrong,
-        background: disabled ? color.disabledBg : checked ? '#F6F9FF' : color.surface,
+        background: disabled ? color.disabledBg : checked ? color.selectedBg : color.surface,
         color: disabled ? color.disabledText : color.ink,
         boxShadow: [checked ? shadow.insetSelected : null, ...rings].filter(Boolean).join(', ') || 'none',
         transform: pressed && !disabled && !reduced ? 'scale(0.99)' : 'none',
@@ -624,7 +627,6 @@ export function RadioGroup({
         display: 'grid',
         gap: '10px',
         gridTemplateColumns: cols > 1 ? `repeat(${cols}, minmax(0, 1fr))` : '1fr',
-        outline: 'none',
         ...style,
       }}
       {...rest}
@@ -737,7 +739,7 @@ export function RatingScale({
         aria-labelledby={labelledBy || (label ? `${groupName}-label` : field.labelId)}
         aria-describedby={describedBy || field.describedBy}
         aria-invalid={field.invalid || undefined}
-        style={{ display: 'flex', gap: '8px', outline: 'none' }}
+        style={{ display: 'flex', gap: '8px' }}
       >
         {items.map((n) => (
           <RatingItem
@@ -938,7 +940,7 @@ export function ChipGroup({
       aria-labelledby={labelledBy || field.labelId}
       aria-describedby={describedBy || field.describedBy}
       aria-invalid={field.invalid || undefined}
-      style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', outline: 'none', ...style }}
+      style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', ...style }}
       {...rest}
     >
       {options.map((opt, index) => (

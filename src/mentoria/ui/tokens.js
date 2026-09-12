@@ -30,12 +30,14 @@ export const color = {
   // 0.0012. Por isso ela é usada em elementos NÃO textuais (anel de foco, barra
   // de progresso, borda de seleção, pontos) e as variantes abaixo carregam texto.
   action: '#2F6BFF',
+  actionLight: '#2C65F2',   // topo do gradiente do botão primário — branco: 4.94:1
   actionStrong: '#2358D9',  // branco sobre ela: 6.05:1 — fundo de botão primário
   actionDeep: '#1E4FCC',    // branco sobre ela: 6.90:1 — estado :active do primário
   actionText: '#1F4FD8',    //  6.63:1 sobre branco · 5.81:1 sobre actionTint — texto/ícone azul
   actionSoft: '#7EA6FF',    //  7.22:1 sobre navy — apoio, só decorativo no claro
   actionTint: '#EAF0FF',    // superfície azul clara
   actionTintStrong: '#DCE6FF',
+  selectedBg: '#F6F9FF',    // fundo de linha/cartão selecionado (ink: 16.36:1)
 
   /* Superfícies ----------------------------------------------------- */
   bg: '#F4F6FA',
@@ -55,6 +57,7 @@ export const color = {
   successBg: '#E9F7F0',
   successBorder: '#BFE5D3',
   danger: '#B42318',       // 6.57:1 sobre branco · 6.05:1 sobre dangerBg
+  dangerDeep: '#8F1C13',   // :active do botão danger — branco: 9.05:1
   dangerBg: '#FEF3F2',
   dangerBorder: '#F5C8C3',
   warning: '#7A5200',      // 6.92:1 sobre branco
@@ -73,7 +76,7 @@ export const color = {
 /* Gradientes DISCRETOS: variação máxima de ~8% de luminância. */
 
 export const gradient = {
-  action: `linear-gradient(180deg, ${'#2C65F2'} 0%, ${color.actionStrong} 100%)`,
+  action: `linear-gradient(180deg, ${color.actionLight} 0%, ${color.actionStrong} 100%)`,
   actionPressed: `linear-gradient(180deg, ${color.actionStrong} 0%, ${color.actionDeep} 100%)`,
   progress: `linear-gradient(90deg, ${color.action} 0%, ${color.actionSoft} 100%)`,
   navy: `linear-gradient(160deg, ${color.navySoft} 0%, ${color.navy} 100%)`,

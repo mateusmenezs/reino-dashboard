@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { color, control, duration, easing, font, gradient, motion, radius, shadow } from './tokens.js'
 
 /* =========================================================================
@@ -134,6 +134,9 @@ export const hiddenControl = {
   margin: 0,
   padding: 0,
   opacity: 0,
+  /* 16px também aqui: o Safari iOS usa o font-size do controle focado para
+     decidir se dá zoom. Radio/checkbox nunca devem disparar isso. */
+  fontSize: '16px',
   appearance: 'none',
   WebkitAppearance: 'none',
   border: 0,
@@ -291,7 +294,7 @@ function buttonSkin(variant, { pressed, disabled }) {
   }
   if (variant === 'danger') {
     return {
-      background: pressed ? '#8F1C13' : color.danger,
+      background: pressed ? color.dangerDeep : color.danger,
       color: color.onDark,
       borderColor: 'transparent',
       boxShadow: pressed ? shadow.none : shadow.xs,
@@ -459,7 +462,7 @@ export function SelectableCard({
         borderWidth: '1px',
         borderStyle: 'solid',
         borderColor: disabled ? color.disabledBorder : selected ? color.action : color.borderStrong,
-        background: disabled ? color.disabledBg : selected ? '#F6F9FF' : color.surface,
+        background: disabled ? color.disabledBg : selected ? color.selectedBg : color.surface,
         color: disabled ? color.disabledText : color.ink,
         cursor: disabled ? 'not-allowed' : 'pointer',
         boxShadow: rings.length ? rings.join(', ') : shadow.none,
@@ -781,6 +784,90 @@ export function SectionTitle({
   )
 }
 
+/* =========================================================================
+ * TOAST
+ * Citado no contrato (§8). Aviso não-bloqueante, ancorado no topo para não
+ * brigar com a BottomBar nem com o teclado. `tone="danger"` usa role="alert"
+ * (interrompe o leitor de tela); os demais usam role="status" (educado).
+ * ====================================================================== */
+
+export function Toast({
+  open = true,
+  message,
+  children,
+  tone = 'neutral',
+  onDismiss,
+  dismissLabel = 'Fechar aviso',
+  style,
+  ...rest
+}) {
+  const reduced = useReducedMotion()
+  const t = BADGE_TONES[tone] || BADGE_TONES.neutral
+  if (!open) return null
+  return (
+    <div
+      role={tone === 'danger' ? 'alert' : 'status'}
+      aria-live={tone === 'danger' ? 'assertive' : 'polite'}
+      style={{
+        position: 'fixed',
+        top: 'max(12px, env(safe-area-inset-top))',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 60,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '10px',
+        width: 'calc(100% - 32px)',
+        maxWidth: '420px',
+        boxSizing: 'border-box',
+        padding: '14px 14px 14px 16px',
+        borderRadius: radius.lg,
+        border: `1px solid ${t.bd}`,
+        background: t.bg,
+        color: t.fg,
+        boxShadow: shadow.lifted,
+        fontFamily: font.family,
+        fontSize: font.size.base,
+        fontWeight: font.weight.medium,
+        lineHeight: font.leading.normal,
+        opacity: 1,
+        transition: transition('opacity', duration.base, reduced),
+        ...style,
+      }}
+      {...rest}
+    >
+      <Icon name={tone === 'danger' ? 'alert' : 'info'} size={18} style={{ marginTop: '2px' }} />
+      <span style={{ flex: '1 1 auto', minWidth: 0 }}>{message || children}</span>
+      {onDismiss ? (
+        <button
+          type="button"
+          aria-label={dismissLabel}
+          onClick={onDismiss}
+          style={{
+            ...tapReset,
+            flex: 'none',
+            width: control.touchMin,
+            height: control.touchMin,
+            margin: '-11px -8px -11px 0',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: 0,
+            background: 'transparent',
+            color: 'inherit',
+            borderRadius: radius.md,
+          }}
+        >
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 /* Reexport utilitário para telas que queiram medir o mesmo espaçamento. */
 export const uiInternals = { readReducedMotion }
 
@@ -789,6 +876,7 @@ export default {
   Card,
   SelectableCard,
   Badge,
+  Toast,
   Spinner,
   Reveal,
   SaveIndicator,
