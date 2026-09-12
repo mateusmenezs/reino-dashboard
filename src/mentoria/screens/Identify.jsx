@@ -6,18 +6,14 @@
  * pela IA chega pelo WhatsApp. Sem telefone válido, o trabalho da palestra
  * inteira não tem para onde ir. O motivo é dito na tela, sem rodeio.
  *
- * Decisão de implementação: o telefone é montado aqui com <TextInput> + as
- * funções puras de `state/phone.js`, e não com um campo do Agente F. Esta é a
- * segunda tela do fluxo e ela não pode depender de um símbolo cujo nome ainda
- * não está no contrato (`fields/` expõe `FieldRenderer`; `PhoneField` vs.
- * `PhoneInput` ainda diverge entre briefing e §9 da arquitetura). O
- * comportamento é o mesmo: máscara BR ao digitar, `inputMode="tel"`,
- * `autoComplete="tel"` e normalização para E.164 no payload (Agente A).
+ * O telefone usa <PhoneField> do Agente F: máscara BR com caret preservado,
+ * `type="tel"`, `inputMode="tel"` e `autoComplete="tel"`. O valor guardado é o
+ * formatado; `schema/payload.js` normaliza para E.164 no envio.
  */
 
 import React, { useCallback } from 'react'
 import { Button, FieldShell, Icon, TextInput, color, font } from '../ui/index.js'
-import { formatPhoneBR } from '../state/phone.js'
+import { PhoneField } from '../fields'
 import { useBriefing } from '../state/store.jsx'
 import { BarRow, Body, Eyebrow, Note, ScreenShell, focusField } from './Layout.jsx'
 
@@ -87,14 +83,10 @@ export default function Identify() {
             helper="É para este número que o seu Blueprint será enviado."
             error={errors.whatsapp}
           >
-            <TextInput
-              type="tel"
-              value={formatPhoneBR(identity.whatsapp || '')}
-              onChange={(value) => setIdentity({ whatsapp: formatPhoneBR(value) })}
-              placeholder="(11) 91234-5678"
-              inputMode="tel"
-              autoComplete="tel"
-              maxLength={16}
+            <PhoneField
+              id="whatsapp"
+              value={identity.whatsapp || ''}
+              onChange={(value) => setIdentity({ whatsapp: value })}
               error={errors.whatsapp}
             />
           </FieldShell>

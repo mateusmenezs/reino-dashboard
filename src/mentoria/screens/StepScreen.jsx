@@ -26,7 +26,7 @@ import {
   radius,
 } from '../ui/index.js'
 import { FieldRenderer } from '../fields'
-import { getVisibleFields, getScreenPosition } from '../schema/questions.js'
+import { STEPS, getVisibleFields, getScreenPosition } from '../schema/questions.js'
 import { useBriefing } from '../state/store.jsx'
 import { BarRow, Eyebrow, Note, ScreenShell, focusField } from './Layout.jsx'
 
@@ -41,6 +41,7 @@ export default function StepScreen() {
     saveState,
     storageAvailable,
     back,
+    goTo,
     tryNext,
   } = useBriefing()
 
@@ -61,6 +62,9 @@ export default function StepScreen() {
 
   const fields = getVisibleFields(screen, answers)
   const position = getScreenPosition(step, screen, answers)
+  /* Quem chegou aqui pela revisão não pode ficar preso no caminho linear:
+     com tudo respondido, existe uma volta de um toque para a revisão. */
+  const allComplete = (progress.completedSteps || []).length === STEPS.length
 
   const footer = (
     <BarRow>
@@ -117,6 +121,14 @@ export default function StepScreen() {
           label={position.label}
           style={{ marginTop: '16px' }}
         />
+
+        {allComplete ? (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+            <Button variant="ghost" onClick={() => goTo('review')} style={{ padding: '0 10px' }}>
+              Ir para a revisão →
+            </Button>
+          </div>
+        ) : null}
       </header>
 
       {!storageAvailable ? (
