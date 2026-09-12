@@ -1,0 +1,197 @@
+/* =============================================================================
+   Construtor de Mentoria com IA — folha de estilo ISOLADA
+   -----------------------------------------------------------------------------
+   O dashboard (src/index.css) aplica estilos globais agressivos: body escuro e
+   `input, select { background: var(--mid); border: …gold }`. Tudo aqui é escopado
+   em `.mentoria-root` (ou em `body.mentoria-page`) para que nada vaze em
+   nenhuma direção. Não importe este arquivo fora do construtor.
+   ========================================================================== */
+
+body.mentoria-page {
+  background: #f4f6fa;
+  color: #0a1b33;
+  /* Evita o "rubber band" branco/escuro no iOS ao passar do fim da página. */
+  overscroll-behavior-y: none;
+}
+
+.boot-fallback {
+  min-height: 100vh;
+  background: #f4f6fa;
+}
+
+.mentoria-root {
+  /* ---- Tokens (espelham src/mentoria/ui/tokens.js) ---- */
+  --m-navy: #0a1b33;
+  --m-navy-soft: #1c2f4d;
+  --m-ink: #0a1b33;
+  --m-ink-2: #3d4f6b;
+  --m-ink-3: #6b7a92;
+  --m-accent: #2f6bff;
+  --m-accent-strong: #1e50d4;
+  --m-accent-soft: #7ea6ff;
+  --m-accent-tint: #eaf0ff;
+  --m-bg: #f4f6fa;
+  --m-surface: #ffffff;
+  --m-border: #e3e8f0;
+  --m-border-strong: #cfd8e6;
+  --m-success: #0f8a5f;
+  --m-success-tint: #e6f6ef;
+  --m-danger: #c0392b;
+  --m-danger-tint: #fdeeec;
+
+  --m-radius-sm: 10px;
+  --m-radius: 14px;
+  --m-radius-lg: 18px;
+
+  --m-shadow-xs: 0 1px 2px rgba(10, 27, 51, 0.04);
+  --m-shadow-sm: 0 2px 8px rgba(10, 27, 51, 0.05);
+  --m-shadow-md: 0 8px 24px rgba(10, 27, 51, 0.07);
+  --m-shadow-lg: 0 18px 48px rgba(10, 27, 51, 0.1);
+
+  --m-dur-fast: 140ms;
+  --m-dur: 200ms;
+  --m-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  min-height: 100dvh;
+  background: var(--m-bg);
+  color: var(--m-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+/* ---- Neutraliza os estilos globais de formulário do dashboard ------------ */
+.mentoria-root input,
+.mentoria-root textarea,
+.mentoria-root select,
+.mentoria-root button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  border-radius: 0;
+  outline: none;
+}
+
+/* 16px é regra de sobrevivência: abaixo disso o Safari iOS dá zoom ao focar
+   e desmonta o layout no meio da palestra. */
+.mentoria-root input,
+.mentoria-root textarea,
+.mentoria-root select {
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mentoria-root textarea {
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.mentoria-root ::placeholder {
+  color: #9aa7bd;
+  opacity: 1;
+}
+
+/* ---- Toque e foco -------------------------------------------------------- */
+.mentoria-root button,
+.mentoria-root [role="button"],
+.mentoria-root label,
+.mentoria-root a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mentoria-root :focus-visible {
+  outline: 2px solid var(--m-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---- Movimento ----------------------------------------------------------- */
+@keyframes m-fade-up {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes m-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes m-pop {
+  0%   { opacity: 0; transform: scale(0.9); }
+  60%  { transform: scale(1.03); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes m-spin { to { transform: rotate(360deg); } }
+@keyframes m-shimmer {
+  0%   { background-position: -180% 0; }
+  100% { background-position: 180% 0; }
+}
+@keyframes m-breathe {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+.m-reveal { animation: m-fade-up var(--m-dur) var(--m-ease) both; }
+.m-fade   { animation: m-fade-in var(--m-dur) var(--m-ease) both; }
+.m-pop    { animation: m-pop 380ms var(--m-ease) both; }
+.m-spin   { animation: m-spin 700ms linear infinite; }
+.m-breathe { animation: m-breathe 2.2s ease-in-out infinite; }
+.m-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(47, 107, 255, 0.12) 45%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: m-shimmer 2.4s linear infinite;
+}
+
+.m-press { transition: transform var(--m-dur-fast) var(--m-ease); }
+.m-press:active:not(:disabled) { transform: scale(0.98); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mentoria-root *,
+  .mentoria-root *::before,
+  .mentoria-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Utilidades de layout mobile ---------------------------------------- */
+.m-safe-bottom { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.m-safe-top { padding-top: env(safe-area-inset-top, 0px); }
+
+/* Barra de CTA fixa: sticky em vez de fixed para que o teclado do iOS empurre
+   o conteúdo em vez de cobrir o botão. */
+.m-bottombar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  background: linear-gradient(
+    to bottom,
+    rgba(244, 246, 250, 0) 0%,
+    rgba(244, 246, 250, 0.92) 28%,
+    #f4f6fa 60%
+  );
+  padding-top: 14px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+}
+
+.m-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.m-scroll-x::-webkit-scrollbar { display: none; }
+
+/* Rolagem até um campo com erro sem encostar no topo da tela. */
+.mentoria-root [data-field-anchor] { scroll-margin-top: 96px; scroll-margin-bottom: 140px; }
