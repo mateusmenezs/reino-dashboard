@@ -17,6 +17,30 @@ function readEnv() {
 
 const ENV = readEnv();
 
+/**
+ * Configuração em TEMPO DE EXECUÇÃO, para a versão de arquivo único.
+ * Num build normal (Vercel), tudo vem das variáveis VITE_*. No HTML avulso
+ * hospedado em Cloudflare Pages não há etapa de build, então a URL do webhook
+ * é editada direto no topo do arquivo, em window.__MENTORIA_CONFIG__.
+ * O que vier daqui tem precedência; segue valendo que nada é credencial
+ * secreta — qualquer coisa exposta ao navegador é pública.
+ */
+function readRuntime() {
+  try {
+    return (typeof window !== 'undefined' && window.__MENTORIA_CONFIG__) || {};
+  } catch (_err) {
+    return {};
+  }
+}
+
+const RUNTIME = readRuntime();
+const pick = (chave, viteKey) => {
+  const valor = RUNTIME[chave];
+  if (typeof valor === 'string' && valor.trim() !== '') return valor.trim();
+  if (typeof valor === 'number' || typeof valor === 'boolean') return valor;
+  return ENV[viteKey];
+};
+
 /** Number() seguro: string vazia, undefined ou lixo caem no fallback. */
 function num(value, fallback) {
   const n = Number(value);
@@ -25,15 +49,15 @@ function num(value, fallback) {
 
 export const CONFIG = {
   /** URL do webhook n8n. Sem ela, o AGENTE C deve devolver erro claro de configuração. */
-  WEBHOOK_URL: ENV.VITE_N8N_WEBHOOK_URL || '',
+  WEBHOOK_URL: pick('WEBHOOK_URL', 'VITE_N8N_WEBHOOK_URL') || '',
   /** Timeout do POST (AbortController). */
-  WEBHOOK_TIMEOUT_MS: num(ENV.VITE_N8N_TIMEOUT_MS, 15000),
+  WEBHOOK_TIMEOUT_MS: num(pick('WEBHOOK_TIMEOUT_MS', 'VITE_N8N_TIMEOUT_MS'), 15000),
   /** Token opcional -> header Authorization: Bearer <token>. */
-  WEBHOOK_TOKEN: ENV.VITE_N8N_WEBHOOK_TOKEN || '',
+  WEBHOOK_TOKEN: pick('WEBHOOK_TOKEN', 'VITE_N8N_WEBHOOK_TOKEN') || '',
   /** Modo evento ao vivo. Hoje é apenas informativo: NÃO bloqueia nada. */
-  EVENT_MODE: ENV.VITE_EVENT_MODE === 'true',
+  EVENT_MODE: pick('EVENT_MODE', 'VITE_EVENT_MODE') === true || pick('EVENT_MODE', 'VITE_EVENT_MODE') === 'true',
   /** Etapa que o palco está conduzindo agora (1..6). 0 = livre (default). */
-  CURRENT_EVENT_STEP: num(ENV.VITE_CURRENT_EVENT_STEP, 0),
+  CURRENT_EVENT_STEP: num(pick('CURRENT_EVENT_STEP', 'VITE_CURRENT_EVENT_STEP'), 0),
   /** Versão do schema persistido/enviado. Muda só com quebra de formato. */
   SCHEMA_VERSION: '1.0',
   /** Logs de debug (console.debug do analytics, avisos do store). */
