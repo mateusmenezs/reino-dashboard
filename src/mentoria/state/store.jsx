@@ -36,6 +36,7 @@ import * as Storage from './storage.js';
 import * as Validation from './validation.js';
 import { CONFIG, useEventStep } from '../config/env.js';
 import { track, trackOnce } from '../analytics/track.js';
+import { ERROR_CODES, getErrorInfo } from '../integration/errors.js';
 
 /* ------------------------------------------------------------------ */
 /* acesso tolerante aos módulos de outros donos                        */
@@ -184,6 +185,30 @@ function createSession() {
  * StrictMode monta/desmonta/remonta o provider em dev e o inicializador de
  * useState pode rodar duas vezes: sem este cache, nasceriam dois session_id.
  */
+/**
+ * O status 'sending' é gravado em disco ANTES da requisição sair, para garantir
+ * que o briefing sobreviva à queda da aba. O efeito colateral é que uma aba
+ * recarregada no meio do envio restaurava 'sending' e o botão ficava
+ * desabilitado para sempre, sem requisição em voo para resgatá-lo.
+ *
+ * Uma página recém-carregada nunca tem requisição em voo: rebaixamos 'sending'
+ * para um erro retentável, preservando as tentativas já contabilizadas (o
+ * submission_id não muda, então o n8n continua deduplicando).
+ */
+function reviveSubmission(saved) {
+  const base = { status: 'idle', error: null, errorMessage: null, attempts: 0, sent_at: null };
+  if (!saved || typeof saved !== 'object') return base;
+  if (saved.status !== 'sending') return { ...base, ...saved };
+  const info = getErrorInfo(ERROR_CODES.CANCELED);
+  return {
+    ...base,
+    ...saved,
+    status: 'error',
+    error: info,
+    errorMessage: info.message,
+  };
+}
+
 let cachedBootstrap = null;
 
 function bootstrap() {
@@ -206,7 +231,7 @@ function bootstrap() {
     answers: saved.answers || {},
     identity: saved.identity || { name: '', whatsapp: '', email: '' },
     nav: saved.nav || { stepIndex: 0, screenIndex: -1, phase: 'welcome' },
-    submission: saved.submission || { status: 'idle', error: null, attempts: 0, sent_at: null },
+    submission: reviveSubmission(saved.submission),
     session,
     restored: !!loaded.state,
     storageAvailable: !!loaded.storageAvailable,
