@@ -306,7 +306,10 @@ function validateAudienceCards(field, value, required) {
     if (!str(entry.descricao)) continue;
     const scores = entry.scores || {};
     const faltando = criteria.filter((c) => {
-      const n = Number(scores[c.value]);
+      // A nota pode chegar achatada (entry.capacidade_financeira) ou dentro de
+      // entry.scores. Aceitar as duas formas desacopla a validação de quem gravou.
+      const raw = scores[c.value] !== undefined ? scores[c.value] : entry[c.value];
+      const n = Number(raw);
       return !Number.isFinite(n) || n < (scale.min || 1) || n > (scale.max || 5);
     });
     if (faltando.length > 0) {

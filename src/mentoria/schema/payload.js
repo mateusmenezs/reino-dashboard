@@ -336,7 +336,10 @@ function buildPublicos(answers) {
     const scores = {}
     let total = 0
     for (const criterio of CRITERIOS_PUBLICO) {
-      const value = score(entry[criterio.value])
+      // Mesma tolerância da validação: achatada tem precedência, aninhada é fallback.
+      const nested = entry.scores && typeof entry.scores === 'object' ? entry.scores : {}
+      const raw = entry[criterio.value] !== undefined ? entry[criterio.value] : nested[criterio.value]
+      const value = score(raw)
       scores[criterio.value] = value
       total += value
     }
