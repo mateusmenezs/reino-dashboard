@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { color, control, duration, easing, font, gradient, motion, radius, shadow } from './tokens.js'
+import { color, control, duration, easing, font, gradient, motion, radius, shadow, type } from './tokens.js'
 
 /* =========================================================================
  * HOOKS E HELPERS COMPARTILHADOS
@@ -262,13 +262,47 @@ export function Spinner({ size = 18, label, strokeWidth = 2.5, style, ...rest })
  * BUTTON
  * ====================================================================== */
 
+/*
+ * Tipografia FLUIDA do rótulo (corrige o CTA que quebrava em duas linhas em
+ * 320px, com a seta órfã na segunda linha):
+ *
+ * - o tamanho vai para uma custom property (`--m-btn-label`) e o <span> do
+ *   rótulo o lê. Isso é intencional: as telas passam `style` no <button>
+ *   (ex.: `wrapCta`), e estilo inline do consumidor venceria um `fontSize`
+ *   herdado. A variável mantém a tipografia do botão com o Design System.
+ * - a seta final é colada na última palavra com espaço inquebrável, então
+ *   ela nunca desce sozinha, mesmo que um rótulo futuro precise de 2 linhas.
+ * - o raio acompanha a altura do botão (regra: ~¼ da menor dimensão).
+ */
 const BUTTON_SIZES = {
-  md: { height: control.heightMd, padding: '0 20px', fontSize: font.size.md, gap: '8px' },
-  lg: { height: control.heightLg, padding: '0 24px', fontSize: font.size.lg, gap: '10px' },
+  md: {
+    height: control.heightMd,
+    padding: '0 16px',
+    label: 'clamp(14px, 4.1vw, 17px)',
+    radius: radius.md,
+    gap: '8px',
+  },
+  lg: {
+    height: control.heightLg,
+    padding: '0 16px',
+    label: 'clamp(14px, 4.4vw, 17px)',
+    radius: radius.lg,
+    gap: '8px',
+  },
 }
 
-function buttonSkin(variant, { pressed, disabled }) {
-  if (disabled) {
+/** Cola a seta final na última palavra: "MENTORIA →" nunca se separa. */
+const GLUE_ARROW = /\s+([→›»↗])\s*$/u
+function glueTrailingArrow(children) {
+  if (typeof children !== 'string') return children
+  return children.replace(GLUE_ARROW, '\u00A0$1')
+}
+
+function buttonSkin(variant, { pressed, disabled, loading }) {
+  /* Enviando NÃO é desabilitado visualmente: o botão continua marinho (com
+     brilho em varredura). Apagar a marca justo no POST é o que faz a pessoa
+     achar que travou. O alvo continua inerte por `disabled` + `aria-busy`. */
+  if (disabled && !loading) {
     return {
       background: color.disabledBg,
       color: color.disabledText,
@@ -300,11 +334,14 @@ function buttonSkin(variant, { pressed, disabled }) {
       boxShadow: pressed ? shadow.none : shadow.xs,
     }
   }
+  /* PRIMÁRIO = MARINHO PROFUNDO. Branco sobre ele: 14.70:1 no topo do
+     gradiente, 17.25:1 na base. O azul da marca fica reservado a seleção,
+     foco e progresso. */
   return {
-    background: pressed ? gradient.actionPressed : gradient.action,
+    background: loading ? gradient.navy : pressed ? gradient.primaryPressed : gradient.primary,
     color: color.onDark,
     borderColor: 'transparent',
-    boxShadow: pressed ? shadow.none : shadow.sm,
+    boxShadow: pressed || loading ? shadow.none : shadow.sm,
   }
 }
 
@@ -333,7 +370,11 @@ export function Button({
   const [pressed, pressProps, clearPressed] = usePressed()
   const isDisabled = disabled || loading
   const dims = BUTTON_SIZES[size] || BUTTON_SIZES.md
-  const skin = buttonSkin(variant, { pressed: pressed && !isDisabled, disabled: isDisabled })
+  const skin = buttonSkin(variant, {
+    pressed: pressed && !isDisabled,
+    disabled: isDisabled,
+    loading,
+  })
 
   useEffect(() => {
     if (isDisabled) clearPressed()
@@ -350,6 +391,8 @@ export function Button({
       onBlur={composeHandlers(focusProps.onBlur, pressProps.onPointerUp, onBlur)}
       style={{
         ...tapReset,
+        position: 'relative',
+        overflow: 'hidden',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -359,13 +402,12 @@ export function Button({
         minHeight: dims.height,
         height: dims.height,
         padding: dims.padding,
-        borderRadius: radius.lg,
+        borderRadius: dims.radius,
         borderWidth: '1px',
         borderStyle: 'solid',
-        fontSize: dims.fontSize,
         fontWeight: font.weight.semibold,
         letterSpacing: font.tracking.snug,
-        lineHeight: 1,
+        lineHeight: 1.15,
         textAlign: 'center',
         cursor: isDisabled ? 'not-allowed' : 'pointer',
         transform: pressed && !isDisabled && !reduced ? motion.press : 'none',
@@ -373,11 +415,25 @@ export function Button({
         ...skin,
         boxShadow: focusVisible ? `${skin.boxShadow === shadow.none ? '' : skin.boxShadow + ', '}${shadow.focus}` : skin.boxShadow,
         ...style,
+        /* depois de `style`: a tipografia do rótulo é do DS, não da tela. */
+        '--m-btn-label': dims.label,
       }}
       {...rest}
     >
+      {loading && !reduced ? (
+        <span className="m-btn-shimmer" aria-hidden="true" />
+      ) : null}
       {loading ? <Spinner size={size === 'lg' ? 20 : 18} /> : leading || null}
-      <span style={{ display: 'inline-block' }}>{children}</span>
+      <span
+        style={{
+          position: 'relative',
+          display: 'inline-block',
+          minWidth: 0,
+          fontSize: 'var(--m-btn-label)',
+        }}
+      >
+        {glueTrailingArrow(children)}
+      </span>
       {!loading && trailing ? trailing : null}
     </button>
   )
@@ -387,16 +443,65 @@ export function Button({
  * CARD
  * ====================================================================== */
 
-export function Card({ padded = true, elevated = false, as: Tag = 'div', children, style, ...rest }) {
+/**
+ * Tons de superfície. `navy` é o tom de autoridade: fundo marinho, texto
+ * branco (17.25:1) e apoio em #C6D2E4 (11.29:1). Use com parcimônia — um
+ * momento escuro por trecho da jornada, nunca a tela inteira.
+ */
+export const SURFACE_TONES = {
+  plain: {
+    background: color.surface,
+    borderColor: color.border,
+    color: color.ink,
+    onDark: false,
+  },
+  muted: {
+    background: color.surfaceMuted,
+    borderColor: color.border,
+    color: color.ink,
+    onDark: false,
+  },
+  tint: {
+    background: color.actionTint,
+    borderColor: color.actionTintStrong,
+    color: color.ink,
+    onDark: false,
+  },
+  navy: {
+    background: gradient.navy,
+    borderColor: color.navyLine,
+    color: color.onDark,
+    onDark: true,
+  },
+}
+
+export function surfaceTone(tone) {
+  return SURFACE_TONES[tone] || SURFACE_TONES.plain
+}
+
+/**
+ * <Card tone="plain|muted|tint|navy" padded elevated />
+ * Raio `xl` (18px): é a superfície que contém controles.
+ */
+export function Card({
+  padded = true,
+  elevated = false,
+  tone = 'plain',
+  as: Tag = 'div',
+  children,
+  style,
+  ...rest
+}) {
+  const skin = surfaceTone(tone)
   return (
     <Tag
       style={{
-        background: color.surface,
-        border: `1px solid ${color.border}`,
+        background: skin.background,
+        border: `1px solid ${skin.borderColor}`,
         borderRadius: radius.xl,
         padding: padded ? '20px' : 0,
-        boxShadow: elevated ? shadow.md : shadow.xs,
-        color: color.ink,
+        boxShadow: skin.onDark ? shadow.navy : elevated ? shadow.md : shadow.xs,
+        color: skin.color,
         fontFamily: font.family,
         ...style,
       }}
@@ -404,6 +509,86 @@ export function Card({ padded = true, elevated = false, as: Tag = 'div', childre
     >
       {children}
     </Tag>
+  )
+}
+
+/**
+ * <Surface tone="navy"> — bloco de superfície sem a semântica de "cartão".
+ * Serve para a faixa de abertura de etapa, o rodapé de celebração e os
+ * diagramas. Mesma família de tons do Card.
+ */
+export function Surface({
+  tone = 'navy',
+  padded = true,
+  as: Tag = 'div',
+  children,
+  style,
+  ...rest
+}) {
+  const skin = surfaceTone(tone)
+  return (
+    <Tag
+      style={{
+        background: skin.background,
+        border: `1px solid ${skin.borderColor}`,
+        borderRadius: radius.xl,
+        padding: padded ? '24px 20px' : 0,
+        boxShadow: skin.onDark ? shadow.navy : shadow.xs,
+        color: skin.color,
+        fontFamily: font.family,
+        ...style,
+      }}
+      {...rest}
+    >
+      {children}
+    </Tag>
+  )
+}
+
+/**
+ * <Hero kicker title body badge titleId /> — abertura de etapa em marinho.
+ * É a peça que dá o "Governante" logo no começo de cada trecho da jornada.
+ * Contrastes: kicker #7EA6FF 7.22:1 · título #FFFFFF 17.25:1 · corpo
+ * #C6D2E4 11.29:1 — todos sobre o marinho.
+ */
+export function Hero({
+  kicker,
+  title,
+  body,
+  badge,
+  tone = 'navy',
+  titleAs: TitleTag = 'h1',
+  titleId,
+  focusable = false,
+  children,
+  style,
+  ...rest
+}) {
+  const skin = surfaceTone(tone)
+  const inkStrong = skin.onDark ? color.onDark : color.ink
+  const inkSoft = skin.onDark ? color.onDarkMuted : color.muted
+  const inkKicker = skin.onDark ? color.actionSoft : color.actionText
+
+  return (
+    <Surface tone={tone} padded={false} style={{ padding: '28px 20px', ...style }} {...rest}>
+      {badge ? <div style={{ marginBottom: '16px' }}>{badge}</div> : null}
+      {kicker ? (
+        <p style={{ margin: '0 0 12px', ...type.overline, color: inkKicker }}>{kicker}</p>
+      ) : null}
+      {title ? (
+        <TitleTag
+          id={titleId}
+          tabIndex={focusable ? -1 : undefined}
+          style={{ margin: 0, ...type.display, color: inkStrong, outline: 'none' }}
+        >
+          {title}
+        </TitleTag>
+      ) : null}
+      {body ? (
+        <p style={{ margin: '16px 0 0', ...type.lead, color: inkSoft }}>{body}</p>
+      ) : null}
+      {children}
+    </Surface>
   )
 }
 
@@ -453,7 +638,7 @@ export function SelectableCard({
         ...tapReset,
         display: 'flex',
         alignItems: 'flex-start',
-        gap: '14px',
+        gap: '12px',
         width: '100%',
         minHeight: 64,
         padding: '16px',
@@ -482,10 +667,7 @@ export function SelectableCard({
           <span
             style={{
               display: 'block',
-              fontSize: font.size.lg,
-              fontWeight: font.weight.semibold,
-              letterSpacing: font.tracking.snug,
-              lineHeight: font.leading.snug,
+              ...type.subtitle,
               color: disabled ? color.disabledText : color.ink,
             }}
           >
@@ -496,10 +678,8 @@ export function SelectableCard({
           <span
             style={{
               display: 'block',
-              marginTop: '6px',
-              fontSize: font.size.base,
-              lineHeight: font.leading.normal,
-              fontWeight: font.weight.regular,
+              marginTop: '8px',
+              ...type.body,
               color: disabled ? color.disabledText : color.muted,
             }}
           >
@@ -549,6 +729,10 @@ const BADGE_TONES = {
   accent: { bg: color.actionTint, fg: color.actionText, bd: color.actionTintStrong },
   warning: { bg: color.warningBg, fg: color.warning, bd: color.warningBorder },
   danger: { bg: color.dangerBg, fg: color.danger, bd: color.dangerBorder },
+  /** selo marinho sobre fundo claro — branco sobre marinho: 17.25:1 */
+  navy: { bg: color.navy, fg: color.onDark, bd: color.navy },
+  /** selo DENTRO de uma superfície marinho — branco sobre #223247: 13.55:1 */
+  onDark: { bg: 'rgba(255, 255, 255, 0.10)', fg: color.onDark, bd: color.navyLine },
 }
 
 export function Badge({ tone = 'neutral', children, leading, style, ...rest }) {
@@ -558,17 +742,18 @@ export function Badge({ tone = 'neutral', children, leading, style, ...rest }) {
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: '6px',
-        padding: '5px 10px',
+        gap: '8px',
+        padding: '4px 12px',
         borderRadius: radius.pill,
         background: t.bg,
         color: t.fg,
         border: `1px solid ${t.bd}`,
         fontFamily: font.family,
-        fontSize: font.size.xs,
-        fontWeight: font.weight.semibold,
+        /* estilo `overline` sem a caixa alta: o selo carrega texto de conteúdo
+           ("Maior potencial", "Ainda sem resposta") e gritar não é premium. */
+        ...type.overline,
+        textTransform: 'none',
         letterSpacing: font.tracking.normal,
-        lineHeight: 1.35,
         whiteSpace: 'nowrap',
         ...style,
       }}
@@ -650,19 +835,24 @@ export function SaveIndicator({
   const isSaved = state === 'saved'
   const text = isSaving ? labels.saving : isSaved ? labels.saved : labels.idle
 
+  /* O indicador trocava "Salvando…" por "Progresso salvo" e pulava
+     horizontalmente no cabeçalho. A largura passa a ser a do MAIOR rótulo:
+     um gêmeo invisível ocupa a mesma célula do grid e reserva o espaço. */
+  const widest = [labels.saving, labels.saved].reduce(
+    (a, b) => (String(b || '').length > String(a || '').length ? b : a),
+    '',
+  )
+
   return (
     <span
       role="status"
       aria-live="polite"
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
+        display: 'inline-grid',
         /* altura fixa: evita o cabeçalho "pular" quando o estado muda */
         minHeight: 20,
-        minWidth: 72,
         fontFamily: font.family,
-        fontSize: font.size.sm,
+        ...type.caption,
         fontWeight: font.weight.medium,
         color: isSaved ? color.success : color.muted,
         opacity: state === 'idle' ? 0 : 1,
@@ -671,9 +861,32 @@ export function SaveIndicator({
       }}
       {...rest}
     >
-      {isSaving ? <Spinner size={14} /> : null}
-      {isSaved ? <Icon name="check" size={15} strokeWidth={2.5} /> : null}
-      {text}
+      <span
+        aria-hidden="true"
+        style={{
+          gridArea: '1 / 1',
+          visibility: 'hidden',
+          whiteSpace: 'nowrap',
+          /* ícone (15px) + gap (8px) que o estado visível ocupa */
+          paddingLeft: '23px',
+        }}
+      >
+        {widest}
+      </span>
+      <span
+        style={{
+          gridArea: '1 / 1',
+          justifySelf: 'end',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '8px',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {isSaving ? <Spinner size={14} /> : null}
+        {isSaved ? <Icon name="check" size={15} strokeWidth={2.5} /> : null}
+        {text}
+      </span>
     </span>
   )
 }
@@ -713,10 +926,7 @@ export function Divider({ label, spacing = 20, style, ...rest }) {
       <span style={{ flex: 1, height: '1px', background: color.border }} />
       <span
         style={{
-          fontSize: font.size.xs,
-          fontWeight: font.weight.semibold,
-          letterSpacing: font.tracking.wide,
-          textTransform: 'uppercase',
+          ...type.overline,
           color: color.muted,
         }}
       >
@@ -727,12 +937,14 @@ export function Divider({ label, spacing = 20, style, ...rest }) {
   )
 }
 
+/** <SectionTitle onDark> inverte a tinta para uso dentro de superfície marinho. */
 export function SectionTitle({
   title,
   children,
   kicker,
   description,
   level = 2,
+  onDark = false,
   id,
   style,
   ...rest
@@ -744,12 +956,9 @@ export function SectionTitle({
       {kicker ? (
         <p
           style={{
-            margin: '0 0 6px',
-            fontSize: font.size.xs,
-            fontWeight: font.weight.semibold,
-            letterSpacing: font.tracking.wide,
-            textTransform: 'uppercase',
-            color: color.actionText,
+            margin: '0 0 8px',
+            ...type.overline,
+            color: onDark ? color.actionSoft : color.actionText,
           }}
         >
           {kicker}
@@ -759,11 +968,8 @@ export function SectionTitle({
         id={id}
         style={{
           margin: 0,
-          fontSize: level <= 1 ? font.size.displayLg : font.size.xl,
-          fontWeight: level <= 1 ? font.weight.bold : font.weight.semibold,
-          letterSpacing: font.tracking.tight,
-          lineHeight: font.leading.tight,
-          color: color.ink,
+          ...(level <= 1 ? type.display : type.heading),
+          color: onDark ? color.onDark : color.ink,
         }}
       >
         {heading}
@@ -772,9 +978,8 @@ export function SectionTitle({
         <p
           style={{
             margin: '8px 0 0',
-            fontSize: font.size.base,
-            lineHeight: font.leading.relaxed,
-            color: color.muted,
+            ...type.body,
+            color: onDark ? color.onDarkMuted : color.muted,
           }}
         >
           {description}
@@ -820,16 +1025,15 @@ export function Toast({
         width: 'calc(100% - 32px)',
         maxWidth: '420px',
         boxSizing: 'border-box',
-        padding: '14px 14px 14px 16px',
-        borderRadius: radius.lg,
+        padding: '16px',
+        borderRadius: radius.xl,
         border: `1px solid ${t.bd}`,
         background: t.bg,
         color: t.fg,
         boxShadow: shadow.lifted,
         fontFamily: font.family,
-        fontSize: font.size.base,
+        ...type.body,
         fontWeight: font.weight.medium,
-        lineHeight: font.leading.normal,
         opacity: 1,
         transition: transition('opacity', duration.base, reduced),
         ...style,
@@ -855,7 +1059,7 @@ export function Toast({
             border: 0,
             background: 'transparent',
             color: 'inherit',
-            borderRadius: radius.md,
+            borderRadius: radius.sm,
           }}
         >
           <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round">
@@ -874,6 +1078,8 @@ export const uiInternals = { readReducedMotion }
 export default {
   Button,
   Card,
+  Surface,
+  Hero,
   SelectableCard,
   Badge,
   Toast,

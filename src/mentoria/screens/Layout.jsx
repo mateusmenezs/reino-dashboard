@@ -7,8 +7,14 @@
  *      sticky. NENHUM elemento aqui tem `overflow: hidden/auto` — a página
  *      inteira rola no <body>, que é a condição para o sticky funcionar e para
  *      o teclado do iOS empurrar (e não cobrir) o botão.
+ *      `center` equilibra verticalmente as telas curtas (abertura, fechamento,
+ *      sucesso, erro): elas tinham ~800px de vazio embaixo e o conteúdo colado
+ *      no topo. Quando o conteúdo é mais alto que a viewport, a coluna volta a
+ *      crescer normalmente — nada é cortado.
  *   2. `focusField`: rolar até o campo inválido + devolver o foco a ele.
  *   3. `findResumePoint`: onde o participante parou, para a retomada.
+ *   4. <ResumeNotice>: a linha de reconhecimento de quem reabriu o app e caiu
+ *      direto na sub-tela certa.
  */
 
 import React from 'react'
@@ -36,12 +42,21 @@ export function ScreenShell({
   children,
   footer = null,
   sticky = true,
+  center = false,
   padTop = 24,
   padBottom = 32,
 }) {
   return (
     <React.Fragment>
-      <div style={{ flex: '1 1 auto', width: '100%' }}>
+      <div
+        style={{
+          flex: '1 1 auto',
+          width: '100%',
+          ...(center
+            ? { display: 'flex', flexDirection: 'column', justifyContent: 'center' }
+            : null),
+        }}
+      >
         <div
           style={{
             width: '100%',
@@ -169,6 +184,62 @@ export function Note({ tone = 'info', children, icon = null, style }) {
       {icon}
       <span style={{ minWidth: 0 }}>{children}</span>
     </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Reconhecimento da retomada                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O app restaura a pessoa na sub-tela exata em que ela parou — mas fazia isso
+ * em silêncio: quem reabria caía no meio de uma pergunta sem entender por quê.
+ * A boa copy de `Welcome` só aparecia para quem voltava ao início à mão.
+ *
+ * Esta linha resolve isso sem atrapalhar: aparece UMA vez, na primeira tela
+ * mostrada depois de uma restauração, e some na navegação seguinte. Não é um
+ * aviso (não usa `Note`, não tem `role="alert"`), não pede ação e não tem
+ * botão de fechar — é uma frase discreta acima do conteúdo.
+ */
+let resumeClaimed = false
+
+/** Reabre o reconhecimento (usado só por teste manual e pelo reset do store). */
+export function resetResumeNotice() {
+  resumeClaimed = false
+}
+
+export function ResumeNotice({ restored, where, style }) {
+  const [mine] = React.useState(() => {
+    if (!restored || resumeClaimed) return false
+    resumeClaimed = true
+    return true
+  })
+  if (!mine || !where) return null
+  return (
+    <p
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        margin: 0,
+        fontSize: font.size.sm,
+        lineHeight: font.leading.normal,
+        color: color.muted,
+        ...style,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          flex: 'none',
+          width: '6px',
+          height: '6px',
+          borderRadius: radius.pill,
+          background: color.success,
+        }}
+      />
+      <span style={{ minWidth: 0 }}>{where}</span>
+    </p>
   )
 }
 

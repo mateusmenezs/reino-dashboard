@@ -28,7 +28,7 @@ import {
 import { FieldRenderer } from '../fields'
 import { STEPS, getVisibleFields, getScreenPosition } from '../schema/questions.js'
 import { useBriefing } from '../state/store.jsx'
-import { BarRow, Eyebrow, Note, ScreenShell, focusField } from './Layout.jsx'
+import { BarRow, Eyebrow, Note, ResumeNotice, ScreenShell, focusField, titleCase } from './Layout.jsx'
 
 export default function StepScreen() {
   const {
@@ -40,6 +40,7 @@ export default function StepScreen() {
     progress,
     saveState,
     storageAvailable,
+    restored,
     back,
     goTo,
     tryNext,
@@ -124,6 +125,17 @@ export default function StepScreen() {
           value={progress.pct / 100}
           label={position.label}
           style={{ marginTop: '16px' }}
+        />
+
+        {/* Quem reabre o app cai direto aqui — a sub-tela certa, sem uma
+            palavra de explicação. Esta linha aparece uma única vez, na
+            primeira tela depois da restauração, e some na navegação seguinte. */}
+        <ResumeNotice
+          restored={restored}
+          where={`Retomando de onde você parou — ${step.kicker}, ${titleCase(step.title)}${
+            position && position.total > 1 ? ` · parte ${position.index} de ${position.total}` : ''
+          }.`}
+          style={{ marginTop: '12px' }}
         />
 
         {allComplete ? (

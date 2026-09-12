@@ -20,6 +20,8 @@ export {
   easing,
   motion,
   font,
+  /** os 12 estilos de texto nomeados — use `{...type.body}` nas telas */
+  type,
   control,
   space,
   layout,
@@ -28,6 +30,11 @@ export {
 export {
   Button,
   Card,
+  /** superfícies: `<Surface tone="navy">` e `<Hero>` dão o momento marinho */
+  Surface,
+  Hero,
+  SURFACE_TONES,
+  surfaceTone,
   SelectableCard,
   Badge,
   Toast,

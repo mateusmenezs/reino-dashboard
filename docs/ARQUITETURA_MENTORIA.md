@@ -157,33 +157,119 @@ sendBriefing(payload, { signal, timeoutMs }) -> Promise<{ ok, status, body }>
 `buildPayload({ answers, identity, session, progress }) -> object` no formato:
 
 ```jsonc
+// ESQUELETO REAL, gerado por buildPayload() com respostas vazias.
+// A forma é sempre esta: ausência vira "" / [] / false, nunca null.
+// O exemplo PREENCHIDO, campo a campo, vive em docs/WEBHOOK_N8N.md §5 —
+// aquele é o documento que o n8n consome; este aqui é o contrato de forma.
 {
-  "meta": { "session_id":"", "submission_id":"", "submitted_at":"", "version":"1.0",
-            "event_mode": false, "client": { "user_agent":"", "locale":"", "timezone":"", "viewport":"" } },
-  "participant": { "name":"", "whatsapp":"+5511912345678", "whatsapp_display":"(11) 91234-5678", "email":"" },
-  "lastro": { "forca":"", "maior_resultado_proprio":"", "melhor_resultado_terceiros":"",
-              "melhor_resultado_terceiros_ausente": false,
-              "narrativa": { "antes":"", "dificuldade":"", "tentativas_falhas":"", "virada":"",
-                             "novas_acoes":"", "resultado_gerado":"", "repeticao":"", "repeticao_ausente": false } },
-  "persona": { "quem_deseja_resultado":"",
-               "publicos": [ { "id":"A", "descricao":"",
-                               "scores": { "capacidade_financeira":0, "velocidade_resultado":0, "prazer_atender":0 },
-                               "score_total":0, "preenchido": true } ],
-               "publico_escolhido":"A", "publico_escolhido_descricao":"", "delegar_escolha_ia": false,
-               "maior_score":"A",
-               "tipo_cliente":"pf",
-               "pf": { "perfil":"", "faixa_renda":"", "faixa_renda_outro":"" },
-               "pj": { "segmento":"", "faixa_faturamento":"", "faixa_faturamento_outro":"" },
-               "dor_principal":"", "desejo_principal":"", "tentativas_anteriores":"", "por_que_falham":"" },
-  "transformacao": { "ponto_a":"", "ponto_b":"", "prazo_estimado":"", "prazo_estimado_label":"", "evidencias_resultado":"" },
-  "metodo": { "erros_comuns": [], "por_que_falham":"", "o_que_precisa_ser_diferente":"",
-              "passos": [], "passos_delegados_ia": false, "tem_nome": true, "nome":"" },
-  "produto": { "modelo":"ensino", "modelo_label":"", "duracao_acompanhamento":"", "carga_horaria_semanal":"",
-               "entregas_indispensaveis":"" },
-  "entrega": { "briefing_necessario":"", "tem_niveis":"sim", "niveis_descricao":"",
-               "frequencia_hot_seat":"", "suporte_entre_encontros": [], "contexto_adicional":"" },
-  "progress": { "completion_pct":100, "answered_questions":0, "total_questions":0,
-                "started_at":"", "duration_seconds":0, "ai_delegations": ["persona.escolha"] }
+  "meta": {
+    "session_id": "",
+    "submission_id": "",
+    "submitted_at": "2026-09-12T04:28:52.649Z",
+    "version": "1.0",
+    "event_mode": false,
+    "client": {
+      "user_agent": "Node.js/22",
+      "locale": "en-US",
+      "timezone": "UTC",
+      "viewport": ""
+    }
+  },
+  "participant": {
+    "name": "",
+    "whatsapp": "",
+    "whatsapp_display": "",
+    "email": ""
+  },
+  "lastro": {
+    "forca": "",
+    "maior_resultado_proprio": "",
+    "melhor_resultado_terceiros": "",
+    "melhor_resultado_terceiros_ausente": false,
+    "narrativa": {
+      "antes": "",
+      "dificuldade": "",
+      "tentativas_falhas": "",
+      "virada": "",
+      "novas_acoes": "",
+      "resultado_gerado": "",
+      "repeticao": "",
+      "repeticao_ausente": false
+    }
+  },
+  "persona": {
+    "quem_deseja_resultado": "",
+    "publicos": [],
+    "publicos_descritos": [],
+    "publico_escolhido": "",
+    "publico_escolhido_descricao": "",
+    "publico_escolhido_origem": "indefinido",
+    "delegar_escolha_ia": true,
+    "maior_score": "",
+    "maior_score_total": 0,
+    "maior_score_empate": [],
+    "tipo_cliente": "",
+    "tipo_cliente_label": "",
+    "pf": {
+      "perfil": "",
+      "faixa_renda": "",
+      "faixa_renda_label": "",
+      "faixa_renda_outro": ""
+    },
+    "pj": {
+      "segmento": "",
+      "faixa_faturamento": "",
+      "faixa_faturamento_label": "",
+      "faixa_faturamento_outro": ""
+    },
+    "dor_principal": "",
+    "desejo_principal": "",
+    "tentativas_anteriores": "",
+    "por_que_falham": ""
+  },
+  "transformacao": {
+    "ponto_a": "",
+    "ponto_b": "",
+    "prazo_estimado": "",
+    "prazo_estimado_label": "",
+    "evidencias_resultado": ""
+  },
+  "metodo": {
+    "erros_comuns": [],
+    "por_que_falham": "",
+    "o_que_precisa_ser_diferente": "",
+    "passos": [],
+    "passos_delegados_ia": false,
+    "tem_nome": false,
+    "nome": ""
+  },
+  "produto": {
+    "modelo": "",
+    "modelo_label": "",
+    "duracao_acompanhamento": "",
+    "duracao_acompanhamento_label": "",
+    "carga_horaria_semanal": "",
+    "carga_horaria_semanal_label": "",
+    "entregas_indispensaveis": ""
+  },
+  "entrega": {
+    "briefing_necessario": "",
+    "tem_niveis": "",
+    "niveis_descricao": "",
+    "frequencia_hot_seat": "",
+    "frequencia_hot_seat_label": "",
+    "suporte_entre_encontros": [],
+    "suporte_entre_encontros_labels": [],
+    "contexto_adicional": ""
+  },
+  "progress": {
+    "completion_pct": 0,
+    "answered_questions": 0,
+    "total_questions": 33,
+    "started_at": "",
+    "duration_seconds": 0,
+    "ai_delegations": []
+  }
 }
 ```
 
@@ -191,7 +277,15 @@ Regras do payload:
 - Strings sempre `trim()`; ausência = `""` (nunca `null`/`undefined`); listas vazias = `[]`.
 - Enums em snake_case estável + `*_label` quando o rótulo humano ajudar a IA.
 - Sem labels visuais desnecessários, sem HTML, sem chaves dinâmicas.
-- `ai_delegations` lista onde o participante pediu recomendação da IA.
+- `ai_delegations` lista onde o participante pediu recomendação da IA (13 regras).
+- `persona.publico_escolhido` só contém um público REALMENTE descrito, ou `""`.
+  Invariante: `publico_escolhido === "" ⟺ delegar_escolha_ia ⟺ "persona.escolha" em ai_delegations`.
+  `publico_escolhido_origem` explica qual dos 5 caminhos produziu o valor.
+- `maior_score` ignora público sem descrição; empate no topo vai em `maior_score_empate`.
+- Escape de ausência marcada zera o texto correspondente no payload (o texto
+  continua no estado, para a pessoa não perder o que escreveu ao desmarcar).
+- Todo texto é limitado defensivamente a 4000 caracteres, para que estado
+  restaurado ou adulterado não estoure o prompt da IA.
 
 ## 8. UI (dono: D) — `src/mentoria/ui/`
 

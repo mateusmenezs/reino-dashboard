@@ -4,7 +4,8 @@ Guia operacional para deixar o envio do briefing funcionando **antes do evento**
 Leia na ordem. Ao final você terá: o webhook criado no n8n, a URL configurada na
 Vercel, um teste ponta a ponta feito e o checklist de véspera fechado.
 
-**O que o app faz:** o participante responde as 37 perguntas no celular, toca em
+**O que o app faz:** o participante responde as 37 perguntas numeradas no celular
+(quantas delas de fato aparecem depende das respostas dele — ver §5a), toca em
 "Enviar" e o navegador dele faz **um POST JSON** para a URL do seu webhook no n8n.
 Só isso. Quem conversa com a IA e com o WhatsApp é o n8n, não o app.
 
@@ -191,12 +192,16 @@ véspera do evento.
 
 ## 5. Payload de exemplo
 
-Estrutura exata que chega no `body` do Webhook, preenchida com um mentor fictício.
-Cole no n8n (Webhook → **Edit Output / Pin Data**) para montar o prompt da IA sem
+Estrutura exata que chega no `body` do Webhook. Este bloco **não foi escrito à
+mão**: ele é a saída literal de `buildPayload()` para um briefing fictício
+completo (mentora de gestão financeira de clínicas, cliente empresa). Cole no
+n8n (Webhook → **Edit Output / Pin Data**) para montar o prompt da IA sem
 depender de ninguém preencher o formulário.
 
 Regras do formato: string ausente é sempre `""` (nunca `null`), lista vazia é
-`[]`, enums em `snake_case` com um `*_label` humano ao lado quando ajuda a IA.
+`[]`, booleano ausente é `false`, enums em `snake_case` com um `*_label` humano
+ao lado. Todo texto vem com `trim()` e cortado no limite do campo (teto absoluto
+de 4000 caracteres).
 
 ```json
 {
@@ -220,17 +225,17 @@ Regras do formato: string ausente é sempre `""` (nunca `null`), lista vazia é
     "email": "renata@exemplo.com.br"
   },
   "lastro": {
-    "forca": "Organizar a rotina financeira de clínicas odontológicas pequenas, separando o caixa da empresa do bolso do dono.",
-    "maior_resultado_proprio": "Saí de R$ 8 mil de dívida no cartão para 6 meses de reserva em 14 meses, sem aumentar faturamento.",
-    "melhor_resultado_terceiros": "A Dra. Camila saiu de R$ 40 mil/mês com lucro zero para R$ 38 mil/mês com R$ 11 mil de lucro em 5 meses.",
+    "forca": "Organizo a rotina financeira de clínicas odontológicas pequenas, separando o caixa da empresa do bolso do dono.",
+    "maior_resultado_proprio": "Saí de R$ 8 mil de dívida no cartão para 6 meses de reserva em 14 meses, sem aumentar o faturamento.",
+    "melhor_resultado_terceiros": "A Dra. Camila saiu de R$ 40 mil por mês com lucro zero para R$ 38 mil por mês com R$ 11 mil de lucro em 5 meses.",
     "melhor_resultado_terceiros_ausente": false,
     "narrativa": {
       "antes": "Eu era gerente de clínica e achava que faturar mais resolveria tudo.",
-      "dificuldade": "A clínica batia recorde de faturamento e mesmo assim faltava dinheiro no dia 20.",
-      "tentativas_falhas": "Planilha nova, curso de gestão, contratar mais uma recepcionista, tentar cortar custo pequeno.",
-      "virada": "Percebi que o problema não era faturamento, era ausência de separação entre caixa da clínica e retirada do dono.",
-      "novas_acoes": "Criei pró-labore fixo, reserva de impostos automática e fechamento semanal de 20 minutos.",
-      "resultado_gerado": "Lucro apareceu no terceiro mês, sem vender um procedimento a mais.",
+      "dificuldade": "A clínica batia recorde de faturamento e mesmo assim faltava dinheiro no dia 20 de todo mês.",
+      "tentativas_falhas": "Planilha nova, curso de gestão, contratar mais uma recepcionista e cortar custo pequeno.",
+      "virada": "Percebi que o problema não era faturamento: era a ausência de separação entre caixa da clínica e retirada do dono.",
+      "novas_acoes": "Criei pró-labore fixo, reserva automática de impostos e um fechamento semanal de 20 minutos.",
+      "resultado_gerado": "O lucro apareceu no terceiro mês, sem vender um procedimento a mais.",
       "repeticao": "Repeti em 23 clínicas nos últimos 2 anos, com o mesmo roteiro de 90 dias.",
       "repeticao_ausente": false
     }
@@ -240,57 +245,67 @@ Regras do formato: string ausente é sempre `""` (nunca `null`), lista vazia é
     "publicos": [
       {
         "id": "A",
-        "descricao": "Dentista dono de clínica, 2 a 6 cadeiras, fatura R$ 30k a R$ 80k/mês",
-        "scores": { "capacidade_financeira": 5, "velocidade_resultado": 4, "prazer_atender": 5 },
+        "descricao": "Dentista dono de clínica com 2 a 6 cadeiras, que já fatura bem e não sabe o próprio lucro",
+        "scores": {"capacidade_financeira": 5, "velocidade_resultado": 4, "prazer_atender": 5},
         "score_total": 14,
         "preenchido": true
       },
       {
         "id": "B",
         "descricao": "Dentista recém-formado montando o primeiro consultório",
-        "scores": { "capacidade_financeira": 2, "velocidade_resultado": 3, "prazer_atender": 4 },
+        "scores": {"capacidade_financeira": 2, "velocidade_resultado": 3, "prazer_atender": 4},
         "score_total": 9,
         "preenchido": true
       },
       {
         "id": "C",
-        "descricao": "Rede de clínicas com mais de 10 unidades",
-        "scores": { "capacidade_financeira": 5, "velocidade_resultado": 2, "prazer_atender": 2 },
+        "descricao": "Rede de clínicas com mais de 10 unidades e sócio investidor",
+        "scores": {"capacidade_financeira": 5, "velocidade_resultado": 2, "prazer_atender": 2},
         "score_total": 9,
         "preenchido": true
       }
     ],
+    "publicos_descritos": ["A", "B", "C"],
     "publico_escolhido": "A",
-    "publico_escolhido_descricao": "Dentista dono de clínica, 2 a 6 cadeiras, fatura R$ 30k a R$ 80k/mês",
+    "publico_escolhido_descricao": "Dentista dono de clínica com 2 a 6 cadeiras, que já fatura bem e não sabe o próprio lucro",
+    "publico_escolhido_origem": "participante",
     "delegar_escolha_ia": false,
     "maior_score": "A",
+    "maior_score_total": 14,
+    "maior_score_empate": [],
     "tipo_cliente": "pj",
-    "pf": { "perfil": "", "faixa_renda": "", "faixa_renda_outro": "" },
-    "pj": { "segmento": "Odontologia — clínica própria", "faixa_faturamento": "30k_80k", "faixa_faturamento_outro": "" },
+    "tipo_cliente_label": "Empresa",
+    "pf": {"perfil": "", "faixa_renda": "", "faixa_renda_label": "", "faixa_renda_outro": ""},
+    "pj": {
+      "segmento": "Clínica odontológica própria",
+      "faixa_faturamento": "de_50_a_100_mil",
+      "faixa_faturamento_label": "De R$ 50 mil a R$ 100 mil por mês",
+      "faixa_faturamento_outro": ""
+    },
     "dor_principal": "Fatura alto e termina o mês sem saber para onde o dinheiro foi.",
-    "desejo_principal": "Ter lucro previsível e poder tirar pró-labore sem medo de faltar para pagar fornecedor.",
-    "tentativas_anteriores": "Contador novo, planilha do YouTube, curso de gestão de clínicas, sistema de gestão caro.",
+    "desejo_principal": "Ter lucro previsível e tirar pró-labore sem medo de faltar dinheiro para pagar fornecedor.",
+    "tentativas_anteriores": "Contador novo, planilha do YouTube, curso de gestão e sistema caro.",
     "por_que_falham": "Tudo que tentaram mede o passado. Ninguém ensinou a decidir o que fazer com o dinheiro na semana."
   },
   "transformacao": {
-    "ponto_a": "Fatura R$ 50 mil/mês, não sabe o lucro, tira dinheiro do caixa quando precisa.",
+    "ponto_a": "Fatura R$ 50 mil por mês, não sabe o lucro e tira dinheiro do caixa quando precisa.",
     "ponto_b": "Sabe o lucro toda sexta-feira, tem pró-labore fixo e 3 meses de reserva da clínica.",
-    "prazo_estimado": "ate_12_semanas",
-    "prazo_estimado_label": "Até 12 semanas",
-    "evidencias_resultado": "Fechamento semanal preenchido, pró-labore caindo em data fixa, reserva crescendo todo mês."
+    "prazo_estimado": "tres_meses",
+    "prazo_estimado_label": "3 meses",
+    "evidencias_resultado": "Fechamento semanal preenchido, pró-labore caindo em data fixa e reserva crescendo todo mês."
   },
   "metodo": {
     "erros_comuns": [
       "Misturar conta pessoal com conta da clínica",
-      "Tratar faturamento como lucro",
-      "Não reservar imposto no recebimento",
-      "Decidir investimento olhando saldo do banco"
+      "Tratar faturamento como se fosse lucro",
+      "Não reservar o imposto no momento do recebimento",
+      "Decidir investimento olhando o saldo do banco"
     ],
     "por_que_falham": "Tentam resolver com ferramenta, quando o problema é a ordem das decisões.",
-    "o_que_precisa_ser_diferente": "Separar os caixas antes de qualquer planilha e criar um ritual semanal curto.",
+    "o_que_precisa_ser_diferente": "Separar os caixas antes de qualquer planilha e criar um ritual semanal curto de leitura.",
     "passos": [
       "Diagnóstico de caixa: separar clínica e pessoa física",
-      "Pró-labore fixo definido por capacidade real",
+      "Pró-labore fixo definido pela capacidade real da clínica",
       "Reserva automática de impostos no recebimento",
       "Fechamento semanal de 20 minutos",
       "Leitura de lucro e decisão de reinvestimento"
@@ -300,30 +315,167 @@ Regras do formato: string ausente é sempre `""` (nunca `null`), lista vazia é
     "nome": "Método Caixa Limpo"
   },
   "produto": {
-    "modelo": "acompanhamento",
-    "modelo_label": "Acompanhamento em grupo",
-    "duracao_acompanhamento": "12 semanas",
-    "carga_horaria_semanal": "2 horas",
-    "entregas_indispensaveis": "Encontro semanal ao vivo, planilha de fechamento, revisão individual do pró-labore no primeiro mês."
+    "modelo": "faco_com",
+    "modelo_label": "EU FAÇO COM VOCÊ",
+    "duracao_acompanhamento": "tres_meses",
+    "duracao_acompanhamento_label": "3 meses",
+    "carga_horaria_semanal": "de_2_a_4h",
+    "carga_horaria_semanal_label": "2 a 4 horas por semana",
+    "entregas_indispensaveis": "Encontro semanal ao vivo, planilha de fechamento e revisão individual do pró-labore no primeiro mês."
   },
   "entrega": {
-    "briefing_necessario": "Faturamento dos últimos 3 meses, custos fixos, dívidas e quanto o dono retira hoje.",
+    "briefing_necessario": "Faturamento dos últimos 3 meses, custos fixos, dívidas e quanto o dono retira da clínica hoje.",
     "tem_niveis": "sim",
-    "niveis_descricao": "Nível 1 organiza o caixa. Nível 2 define lucro-alvo. Nível 3 planeja expansão.",
+    "niveis_descricao": "Nível 1 organiza o caixa. Nível 2 define o lucro-alvo. Nível 3 planeja a expansão.",
     "frequencia_hot_seat": "quinzenal",
-    "suporte_entre_encontros": ["grupo_whatsapp", "revisao_material"],
-    "contexto_adicional": "Prefiro turmas de no máximo 12 clínicas para conseguir olhar número por número."
+    "frequencia_hot_seat_label": "Quinzenal",
+    "suporte_entre_encontros": ["grupo_whatsapp", "comunidade"],
+    "suporte_entre_encontros_labels": ["Grupo de WhatsApp", "Comunidade"],
+    "contexto_adicional": "Prefiro turmas de no máximo 12 clínicas para conseguir olhar número por número com cada dono."
   },
   "progress": {
     "completion_pct": 100,
-    "answered_questions": 37,
-    "total_questions": 37,
+    "answered_questions": 40,
+    "total_questions": 40,
     "started_at": "2026-03-14T17:55:31.004Z",
-    "duration_seconds": 2796,
+    "duration_seconds": 2797,
     "ai_delegations": []
   }
 }
 ```
+
+### 5a. O que muda de um participante para outro
+
+O exemplo acima é **um** caminho possível. Estas são as regras que fazem o JSON
+mudar de forma — monte as condições do n8n em cima delas, não em cima do
+exemplo.
+
+**`progress.total_questions` NÃO é 37.** A tela numera 37 perguntas, mas esse
+total é outro número: ele conta as perguntas **que existiram para aquela
+pessoa** — a ramificação Pessoa Física/Empresa, os campos que só aparecem
+dependendo da resposta anterior e as opcionais deixadas em branco mudam a conta
+(no exemplo acima deu 40; num briefing "ambos" passa de 42). Use
+`completion_pct === 100` para saber que o briefing está completo. Nunca compare
+com 37.
+
+**Escolha do público.** `persona.publico_escolhido` só pode conter um público
+que tem descrição, ou `""`. Vale a equivalência:
+
+```
+publico_escolhido === ""   <=>   delegar_escolha_ia === true
+                           <=>   ai_delegations contém "persona.escolha"
+```
+
+Três formas de ler a mesma coisa: **quem escolhe o público é a IA**.
+`persona.publico_escolhido_origem` conta como se chegou lá:
+
+| `publico_escolhido_origem` | o que aconteceu |
+|---|---|
+| `participante` | ele escolheu, e o público escolhido tem descrição |
+| `unico_publico_descrito` | descreveu um público só; não havia escolha a fazer |
+| `delegado_ia` | marcou "quero que a IA avalie e recomende" |
+| `descartado_sem_descricao` | escolheu um público que ficou sem descrição; a escolha foi descartada e virou delegação |
+| `indefinido` | nenhum público descrito (briefing incompleto) |
+
+**Empate de score.** `persona.maior_score` é o público **preenchido** (descrição
++ notas) com maior `score_total`; público com notas e sem descrição nunca ganha
+esse selo. Quando dois ou três empatam no topo, `persona.maior_score_empate`
+lista todos (`["A","B","C"]`) e `maior_score` traz só o primeiro da ordem A > B >
+C, para não quebrar quem já lê o campo. **Com `maior_score_empate` não vazio, o
+score não decidiu nada** — a IA precisa desempatar pelo conteúdo das descrições,
+não pelo número. Sem empate, o campo vem `[]`.
+
+**Escape marcada = texto vazio.** Quando a pessoa marca "ainda não tenho isso", o
+texto correspondente vai `""` no payload, mesmo que ela tivesse escrito algo
+antes de marcar (o rascunho fica no aparelho dela, não viaja). Vale para:
+
+| flag | campo que vem `""` / `[]` |
+|---|---|
+| `lastro.melhor_resultado_terceiros_ausente: true` | `lastro.melhor_resultado_terceiros` |
+| `lastro.narrativa.repeticao_ausente: true` | `lastro.narrativa.repeticao` |
+| `metodo.passos_delegados_ia: true` | `metodo.passos` (vem `[]`) |
+| `metodo.tem_nome: false` | `metodo.nome` |
+| `entrega.tem_niveis` diferente de `"sim"` | `entrega.niveis_descricao` |
+
+Nunca vão chegar juntos "ainda não gerei resultado para terceiros" e um
+depoimento: seria contradição indo parar no WhatsApp do participante.
+
+**Ramificação Pessoa Física / Empresa.** `persona.tipo_cliente` decide qual bloco
+vem preenchido: `"pf"` preenche `persona.pf` e zera `persona.pj`; `"pj"` faz o
+contrário; `"ambos"` preenche os dois; `"nao_sei"` zera os dois e delega à IA.
+
+**`entrega.tem_niveis`: "nao" e "nao_sei" não são a mesma coisa.** Os dois geram a
+delegação `entrega.niveis`, porque nos dois casos a IA propõe os níveis. O que
+muda é o tom, e está em `entrega.tem_niveis`:
+
+- `"nao"` — ele afirma que os clientes chegam todos no mesmo estágio. Proponha
+  poucos níveis, ou nenhum, e justifique.
+- `"nao_sei"` — ele não sabe. Proponha a classificação e explique o critério.
+
+**`persona.pf.faixa_renda` / `persona.pj.faixa_faturamento` com valor `"outro"`.**
+A opção na tela é "Outro / Não sei", então ela também entra em `ai_delegations`
+(`persona.faixa_renda` / `persona.faixa_faturamento`). Quem diz qual dos dois é
+o campo `*_outro` ao lado: **com texto**, foi "Outro" e a resposta está escrita
+ali; **vazio**, é "não sei" de verdade e a IA estima a faixa pelo resto do
+briefing. Com qualquer outra faixa escolhida, o `*_outro` vem `""` — nunca sobra
+texto órfão de uma escolha anterior.
+
+### 5b. `progress.ai_delegations` — o mapa do que a IA precisa PROPOR
+
+Lista fixa e determinística. Campo vazio que aparece aqui **não é esquecimento**:
+é pedido explícito de recomendação.
+
+| valor | a IA precisa propor | onde ela acha a matéria-prima |
+|---|---|---|
+| `persona.escolha` | qual público vira a persona | `persona.publicos[]`, `maior_score`, `maior_score_empate` |
+| `persona.tipo_cliente` | se o cliente é pessoa ou empresa | `persona.quem_deseja_resultado` e a descrição do público |
+| `persona.faixa_renda` | faixa de renda da persona | `persona.pf.faixa_renda_outro` (vazio = não sabe mesmo) |
+| `persona.faixa_faturamento` | porte da empresa | `persona.pj.faixa_faturamento_outro` |
+| `transformacao.prazo` | prazo realista da transformação | `transformacao.ponto_a` / `ponto_b` e `metodo.passos` |
+| `metodo.passos` | os passos do método | `lastro.narrativa` inteira |
+| `metodo.nome` | nomes possíveis para o método | mecanismo + transformação |
+| `produto.modelo` | ensino / faço com / faço por | carga horária e entregas indispensáveis |
+| `produto.duracao` | duração do acompanhamento | prazo da transformação |
+| `produto.carga_horaria` | horas por semana | modelo e entregas |
+| `entrega.niveis` | classificação de níveis | `entrega.tem_niveis` (ver acima) |
+| `entrega.hot_seat` | frequência do Hot Seat | duração e carga horária |
+| `entrega.suporte` | canais de suporte entre encontros | modelo e carga horária |
+
+### 5c. Payload de emergência — o IF que evita quebrar em silêncio
+
+Se a montagem do JSON falhar no navegador do participante (estado corrompido,
+navegador antigo, algo inesperado), o app **não deixa o briefing se perder**: ele
+envia um payload de emergência, com forma diferente. Ele tem:
+
+```json
+{
+  "meta": { "...": "...", "fallback_payload": true },
+  "participant": { "name": "...", "whatsapp": "(11) 91234-5678", "whatsapp_display": "", "email": "..." },
+  "answers_raw": { "lastro_forca": "...", "persona_publicos": { "A": { "descricao": "..." } } },
+  "progress": { "completion_pct": 100, "answered_questions": 0, "total_questions": 0,
+                "started_at": "", "duration_seconds": 0, "ai_delegations": [] }
+}
+```
+
+Diferenças que quebram o fluxo se você não tratar:
+
+- **não existem** os blocos `lastro`, `persona`, `transformacao`, `metodo`,
+  `produto`, `entrega`. Todas as respostas vêm cruas em **`answers_raw`**,
+  indexadas pelo id do campo (`lastro_forca`, `persona_publicos`, …), sem
+  `*_label`, sem enum normalizado, sem as regras de escape;
+- `participant.whatsapp` vem **como a pessoa digitou** (ex.: `(11) 91234-5678`),
+  não em E.164, e `whatsapp_display` vem `""`;
+- `duration_seconds` é sempre `0`.
+
+**Monte um nó IF logo depois do Webhook**, testando
+`{{ $json.body.meta.fallback_payload }}` igual a `true`:
+
+- **verdadeiro** → não mande para a IA. Grave o JSON em algum lugar (Data Table,
+  Sheets, e-mail para a equipe) e avise alguém no evento: esse participante
+  precisa de tratamento manual. É raro, mas se acontecer sem o IF a IA recebe um
+  JSON sem nenhum dos campos que o prompt espera e devolve um Blueprint vazio —
+  em silêncio.
+- **falso** (o normal) → segue o fluxo da §4 e da §5.
 
 Dicas para montar o prompt da IA no n8n:
 
@@ -331,10 +483,13 @@ Dicas para montar o prompt da IA no n8n:
 - `metodo.passos` é o esqueleto. Se `passos_delegados_ia` for `true`, a lista veio
   vazia de propósito: o participante pediu para a IA propor os passos.
 - `persona.delegar_escolha_ia: true` significa "escolha o público por mim" — use
-  `persona.maior_score` e as `publicos[].scores` como critério.
+  `persona.publicos[]` (descrição **e** notas) e o `maior_score_empate` como critério.
 - `progress.ai_delegations` lista todos os pontos delegados. Vale checar antes de
   assumir que um campo vazio é esquecimento.
 - Campos com `_ausente: true` significam "ainda não tenho isso", não "faltou responder".
+- Nenhum campo do payload fala de preço, ticket ou faturamento esperado da
+  mentoria: essas perguntas não existem no formulário, por decisão. Não peça para
+  a IA "calcular o investimento" com base em campo nenhum.
 
 ---
 
@@ -405,6 +560,9 @@ Faça na ordem, um dia antes. Marque tudo.
 - [ ] Teste ponta a ponta feito, com WhatsApp real chegando (§6b).
 - [ ] Teste de duplicata: enviei o mesmo `submission_id` duas vezes e só chegou
       **um** WhatsApp (§4).
+- [ ] Nó **IF** do payload de emergência no lugar: `meta.fallback_payload = true`
+      não vai para a IA, vai para a equipe (§5c). Sem ele, o caso raro quebra em
+      silêncio e o participante recebe um Blueprint vazio.
 - [ ] Credenciais dentro do n8n conferidas: Evolution API respondendo, chave de IA
       com saldo/crédito.
 - [ ] Nenhuma credencial forte no `.env.local` nem na Vercel — só URL, token
@@ -541,6 +699,8 @@ no aparelho dele: conserte o nó e peça para reenviar.
 | Retentativa automática | no máximo **1**, só em rede/timeout/`5xx`/`408`/`429` |
 | Nunca retenta | `400`, `401`, `403`, `404` e demais `4xx` |
 | Sucesso | qualquer `2xx` — corpo JSON, texto ou vazio, tanto faz |
+| Payload normal | blocos `lastro`/`persona`/`transformacao`/`metodo`/`produto`/`entrega` (§5) |
+| Payload de emergência | `meta.fallback_payload: true` + `answers_raw`, sem os blocos — trate com um IF (§5c) |
 
 | Variável | Obrigatória | Padrão |
 |---|---|---|

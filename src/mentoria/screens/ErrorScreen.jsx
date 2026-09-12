@@ -9,6 +9,14 @@
  *      canal não configurado).
  * Quando o erro não é retentável, a tela para de oferecer o botão como solução
  * principal e manda falar com a equipe do evento.
+ *
+ * ── TRANQUILIZAR UMA VEZ ────────────────────────────────────────────────────
+ * A tela dizia três vezes a mesma coisa: um subtítulo ("Suas respostas estão
+ * salvas"), a linha do rodapé ("Nada foi perdido…") e, no caso não retentável,
+ * de novo dentro do aviso. Repetir tranquilidade produz o efeito contrário —
+ * soa como quem tem algo a esconder. Agora a garantia aparece UMA vez, colada
+ * na ação (no rodapé, onde a decisão é tomada), e o corpo da tela fica com o
+ * que a pessoa ainda não sabe: o que aconteceu.
  */
 
 import React, { useCallback, useRef } from 'react'
@@ -68,7 +76,7 @@ export default function ErrorScreen() {
   )
 
   return (
-    <ScreenShell footer={footer} padTop={44} padBottom={36}>
+    <ScreenShell footer={footer} center padTop={36} padBottom={36}>
       <div style={{ textAlign: 'center' }}>
         <span
           aria-hidden="true"
@@ -104,16 +112,6 @@ export default function ErrorScreen() {
           Não conseguimos enviar seu Blueprint ainda.
         </h1>
 
-        <p
-          style={{
-            margin: '14px 0 0',
-            fontSize: font.size.lg,
-            lineHeight: font.leading.relaxed,
-            color: color.inkSoft,
-          }}
-        >
-          Suas respostas estão salvas. Tente novamente.
-        </p>
       </div>
 
       {info ? (
@@ -138,8 +136,8 @@ export default function ErrorScreen() {
       {!retryable ? (
         <Reveal delay={90}>
           <Note tone="warning" icon={<Icon name="info" size={18} />} style={{ marginTop: '18px' }}>
-            Insistir no botão não vai resolver este caso. Procure a equipe do evento: seu briefing
-            continua salvo neste aparelho e será enviado assim que o canal for liberado.
+            Insistir no botão não vai resolver este caso. Procure a equipe do evento: o envio é
+            liberado por lá.
           </Note>
         </Reveal>
       ) : null}

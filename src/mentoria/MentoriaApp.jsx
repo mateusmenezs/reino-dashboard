@@ -134,6 +134,13 @@ function screenFor(phase, screenPhase) {
   return Welcome
 }
 
+/**
+ * Falha de envio não é "mudança de tela": é a única coisa que a pessoa precisa
+ * ouvir NA HORA. `role="status"`/`polite` fazia o leitor de tela esperar a fila
+ * esvaziar — quem estava com o foco no botão continuava ouvindo o estado antigo.
+ */
+const ASSERTIVE_PHASES = new Set(['error'])
+
 /** Texto curto anunciado em `aria-live` a cada troca de tela. */
 function announcementFor({ phase, screenPhase, step, screenIndex, screenCount, pct }) {
   if (phase === 'identify') return 'Seus dados de contato.'
@@ -205,7 +212,12 @@ function Router() {
         width: '100%',
       }}
     >
-      <p aria-live="polite" role="status" style={srOnly}>
+      <p
+        key={ASSERTIVE_PHASES.has(nav.phase) ? 'alert' : 'status'}
+        role={ASSERTIVE_PHASES.has(nav.phase) ? 'alert' : 'status'}
+        aria-live={ASSERTIVE_PHASES.has(nav.phase) ? 'assertive' : 'polite'}
+        style={srOnly}
+      >
         {announcement}
       </p>
 

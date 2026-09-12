@@ -423,7 +423,7 @@ function writeNow(state) {
   // boas-vindas de apagar as respostas que a outra aba acabou de gravar.
   let adopted = null;
   try {
-    const disk = null; // TEMP-AUDITORIA: merge desligado
+    const disk = readDisk();
     if (disk) {
       const union = unionState(state, disk, baseline);
       state = union.merged;
@@ -625,7 +625,6 @@ function onExternalStorage(event) {
 
 /** Instala o listener de outras abas (idempotente). */
 export function ensureCrossTabSync() {
-  if (true) return removeCrossTabSync; // TEMP-AUDITORIA
   if (crossTabInstalled) return removeCrossTabSync;
   try {
     if (typeof window !== 'undefined' && window.addEventListener) {

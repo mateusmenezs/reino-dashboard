@@ -28,6 +28,8 @@
  *    - `metodo.passos_delegados_ia: true` -> `metodo.passos` = [].
  *    - `metodo.tem_nome: false` -> `metodo.nome` = "".
  *    - `entrega.tem_niveis` != "sim" -> `entrega.niveis_descricao` = "".
+ *    - `persona.pf.faixa_renda` != "outro" -> `faixa_renda_outro` = ""
+ *      (o mesmo vale para `persona.pj.faixa_faturamento_outro`).
  * 6. `progress.ai_delegations` é a lista de pontos onde o participante pediu
  *    explicitamente recomendação da IA (ou declarou "ainda não sei"). É o mapa
  *    do que a IA precisa PROPOR em vez de apenas organizar. Valores possíveis:
@@ -603,7 +605,9 @@ function buildPersona(answers) {
       perfil: text(answers, 'persona_pf_perfil'),
       faixa_renda: enumOf(answers, 'persona_pf_faixa_renda'),
       faixa_renda_label: labelOf(FAIXA_RENDA_PF, enumOf(answers, 'persona_pf_faixa_renda')),
-      faixa_renda_outro: isFieldVisible(FIELD_BY_ID.persona_pf_faixa_renda, answers)
+      /* O complemento só existe quando a escolha é de fato "Outro / Não sei":
+         trocar a faixa depois de escrever não pode deixar texto órfão no JSON. */
+      faixa_renda_outro: enumOf(answers, 'persona_pf_faixa_renda') === 'outro'
         ? clamp(answers.persona_pf_faixa_renda_outro, OTHER_MAX_LENGTH)
         : '',
     },
@@ -614,7 +618,7 @@ function buildPersona(answers) {
         FAIXA_FATURAMENTO_PJ,
         enumOf(answers, 'persona_pj_faixa_faturamento'),
       ),
-      faixa_faturamento_outro: isFieldVisible(FIELD_BY_ID.persona_pj_faixa_faturamento, answers)
+      faixa_faturamento_outro: enumOf(answers, 'persona_pj_faixa_faturamento') === 'outro'
         ? clamp(answers.persona_pj_faixa_faturamento_outro, OTHER_MAX_LENGTH)
         : '',
     },

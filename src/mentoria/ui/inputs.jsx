@@ -9,7 +9,7 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import { color, control, duration, font, radius, shadow } from './tokens.js'
+import { color, control, duration, font, radius, shadow, type as typography } from './tokens.js'
 import {
   Badge,
   Icon,
@@ -25,13 +25,13 @@ import {
   useReducedMotion,
 } from './primitives.jsx'
 
-/**
- * Classe utilitária Tailwind v4 (valor explícito) usada só para colorir o
- * `::placeholder` — pseudo-elemento não é alcançável por estilo inline, e a cor
- * padrão do agente (cinza claro) reprova contraste. #667790 = 4.56:1 no branco.
- * Se o Tailwind não gerar a classe, o placeholder ainda aparece legível.
+/*
+ * O `::placeholder` é pseudo-elemento: estilo inline não o alcança. A cor vem
+ * de `.mentoria-root ::placeholder` em `mentoria.css` (#667790 = 4.56:1 sobre
+ * branco, espelhando `color.placeholder`). NÃO dependemos mais de classe
+ * utilitária do Tailwind aqui — o construtor não pode assumir que a folha do
+ * dashboard esteja carregada na rota /mentoria.
  */
-const PLACEHOLDER_CLASS = 'placeholder:text-[#667790]'
 
 /* =========================================================================
  * CONTEXTO DE CAMPO
@@ -95,11 +95,8 @@ export function FieldShell({
               display: 'flex',
               alignItems: 'baseline',
               gap: '8px',
-              marginBottom: helper ? '6px' : '10px',
-              fontSize: font.size.lg,
-              fontWeight: font.weight.semibold,
-              letterSpacing: font.tracking.snug,
-              lineHeight: font.leading.snug,
+              marginBottom: helper ? '8px' : '12px',
+              ...typography.subtitle,
               color: color.ink,
               /* rótulo é alvo de toque do input: sem highlight cinza do iOS */
               WebkitTapHighlightColor: 'transparent',
@@ -110,14 +107,13 @@ export function FieldShell({
                 aria-hidden="true"
                 style={{
                   flex: 'none',
-                  minWidth: '26px',
-                  height: '26px',
-                  padding: '0 6px',
+                  minWidth: '28px',
+                  height: '28px',
+                  padding: '0 8px',
                   borderRadius: radius.xs,
                   background: color.actionTint,
                   color: color.actionText,
-                  fontSize: font.size.xs,
-                  fontWeight: font.weight.bold,
+                  ...typography.numeric,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -133,10 +129,9 @@ export function FieldShell({
                 <span
                   style={{
                     marginLeft: '8px',
-                    fontSize: font.size.sm,
+                    ...typography.caption,
                     fontWeight: font.weight.medium,
                     color: color.muted,
-                    letterSpacing: font.tracking.normal,
                   }}
                 >
                   opcional
@@ -150,9 +145,8 @@ export function FieldShell({
           <p
             id={helperId}
             style={{
-              margin: '0 0 10px',
-              fontSize: font.size.base,
-              lineHeight: font.leading.relaxed,
+              margin: '0 0 12px',
+              ...typography.body,
               color: color.muted,
             }}
           >
@@ -169,10 +163,9 @@ export function FieldShell({
             style={{
               display: 'flex',
               alignItems: 'flex-start',
-              gap: '6px',
+              gap: '8px',
               margin: '8px 0 0',
-              fontSize: font.size.base,
-              lineHeight: font.leading.normal,
+              ...typography.body,
               fontWeight: font.weight.medium,
               color: color.danger,
             }}
@@ -318,7 +311,7 @@ export const TextInput = forwardRef(function TextInput(
       readOnly={readOnly}
       aria-invalid={isInvalid || undefined}
       aria-describedby={described}
-      className={`${PLACEHOLDER_CLASS} ${className}`.trim()}
+      className={className || undefined}
       onFocus={composeHandlers(focusProps.onFocus, onFocus)}
       onBlur={composeHandlers(focusProps.onBlur, onBlur)}
       style={inputStyle}
@@ -362,7 +355,15 @@ function Affix({ side, children }) {
  * TEXTAREA
  * ====================================================================== */
 
-/** <TextArea id value onChange error rows maxLength autoGrow /> */
+/**
+ * <TextArea id value onChange error rows maxLength autoGrow />
+ *
+ * `autoGrow` é PADRÃO. Antes o campo tinha altura fixa e a resposta longa
+ * ficava decepada no meio da linha — a pessoa não relia o que escreveu. Quem
+ * passa `rows` continua mandando no piso: a caixa nunca encolhe abaixo dele.
+ * Como o campo cresce sozinho, a alça de redimensionar (que vazava do canto
+ * arredondado e é inútil no celular) deixa de existir.
+ */
 export const TextArea = forwardRef(function TextArea(
   {
     id,
@@ -372,7 +373,7 @@ export const TextArea = forwardRef(function TextArea(
     placeholder,
     rows = 4,
     maxLength,
-    autoGrow = false,
+    autoGrow = true,
     disabled = false,
     readOnly = false,
     describedBy,
@@ -400,13 +401,19 @@ export const TextArea = forwardRef(function TextArea(
   const minHeight = Math.max(rows * control.textareaLineHeight + 28, 108)
 
   useIsomorphicLayoutEffect(() => {
-    if (!autoGrow) return
+    if (!autoGrow) return undefined
     const el = innerRef.current
-    if (!el) return
+    if (!el) return undefined
     /* Duas passadas evitam "jank": zera, mede, aplica. */
-    el.style.height = 'auto'
-    const next = Math.max(el.scrollHeight, minHeight)
-    el.style.height = `${next}px`
+    const fit = () => {
+      el.style.height = 'auto'
+      el.style.height = `${Math.max(el.scrollHeight, minHeight)}px`
+    }
+    fit()
+    /* Girar o aparelho muda a largura e, com ela, o número de linhas. */
+    if (typeof window === 'undefined') return undefined
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
   }, [autoGrow, text, minHeight])
 
   const handleChange = useCallback(
@@ -416,7 +423,10 @@ export const TextArea = forwardRef(function TextArea(
     [onChange],
   )
 
+  /* O contador "0/1200" num campo vazio só assusta. Ele aparece quando a
+     pessoa está escrevendo (foco) ou quando o limite está perto de verdade. */
   const near = maxLength ? text.length >= maxLength * 0.9 : false
+  const counterVisible = Boolean(maxLength) && (focused || near)
 
   return (
     <div style={{ display: 'block' }}>
@@ -433,7 +443,7 @@ export const TextArea = forwardRef(function TextArea(
         readOnly={readOnly}
         aria-invalid={isInvalid || undefined}
         aria-describedby={described}
-        className={`${PLACEHOLDER_CLASS} ${className}`.trim()}
+        className={className || undefined}
         onFocus={composeHandlers(focusProps.onFocus, onFocus)}
         onBlur={composeHandlers(focusProps.onBlur, onBlur)}
         style={{
@@ -441,6 +451,8 @@ export const TextArea = forwardRef(function TextArea(
           minHeight,
           padding: '14px',
           lineHeight: `${control.textareaLineHeight}px`,
+          /* sem alça de redimensionar: ela vazava do canto arredondado e não
+             tem uso no toque — o campo cresce sozinho */
           resize: autoGrow ? 'none' : 'vertical',
           overflow: autoGrow ? 'hidden' : 'auto',
           ...style,
@@ -453,12 +465,15 @@ export const TextArea = forwardRef(function TextArea(
           style={{
             display: 'flex',
             justifyContent: 'flex-end',
-            marginTop: '6px',
+            /* a linha existe sempre: revelar o contador não empurra a tela */
+            minHeight: '20px',
+            marginTop: '4px',
             fontFamily: font.family,
-            fontSize: font.size.xs,
+            ...typography.numeric,
             fontWeight: font.weight.medium,
             color: near ? color.warning : color.muted,
-            fontVariantNumeric: 'tabular-nums',
+            opacity: counterVisible ? 1 : 0,
+            transition: transition('opacity, color', duration.fast, reduced),
           }}
         >
           {counterLabel ? `${counterLabel} ` : ''}
@@ -560,9 +575,11 @@ function OptionRow({
         <span
           style={{
             display: 'block',
-            fontSize: font.size.md,
+            /* estilo `subtitle` escrito à mão: o prop `type` desta função
+               sombreia o token de tipografia */
+            fontSize: font.size.lg,
             fontWeight: checked ? font.weight.semibold : font.weight.medium,
-            lineHeight: font.leading.snug,
+            lineHeight: 1.45,
             letterSpacing: font.tracking.snug,
             color: disabled ? color.disabledText : color.ink,
           }}
@@ -576,7 +593,7 @@ function OptionRow({
               marginTop: '4px',
               fontSize: font.size.base,
               fontWeight: font.weight.regular,
-              lineHeight: font.leading.normal,
+              lineHeight: 1.55,
               color: disabled ? color.disabledText : color.muted,
             }}
           >
@@ -716,6 +733,16 @@ export function RatingScale({
   const items = []
   for (let n = min; n <= max; n += 1) items.push(n)
 
+  /* Rótulos "1" e "5" embaixo da régua repetem o que as caixas já mostram —
+     e numa tela de três públicos isso aparecia nove vezes. Quando o rótulo é
+     só o próprio número, ele some da tela (continua no `aria-label` de cada
+     nota, que é onde ele de fato ajuda). Rótulo com palavra continua visível. */
+  const lowIsNumber = String(lowLabel || '').trim() === String(min)
+  const highIsNumber = String(highLabel || '').trim() === String(max)
+  const captionVisible = Boolean(
+    (lowLabel && !lowIsNumber) || (highLabel && !highIsNumber),
+  )
+
   return (
     <div style={{ fontFamily: font.family, ...style }} {...rest}>
       {label ? (
@@ -724,7 +751,7 @@ export function RatingScale({
           style={{
             display: 'block',
             marginBottom: '8px',
-            fontSize: font.size.base,
+            ...typography.body,
             fontWeight: font.weight.medium,
             color: color.inkSoft,
           }}
@@ -752,9 +779,9 @@ export function RatingScale({
             disabled={disabled}
             reduced={reduced}
             ariaLabel={
-              n === min && lowLabel
+              n === min && lowLabel && !lowIsNumber
                 ? `${n} — ${lowLabel}`
-                : n === max && highLabel
+                : n === max && highLabel && !highIsNumber
                   ? `${n} — ${highLabel}`
                   : `${n} de ${max}`
             }
@@ -762,7 +789,7 @@ export function RatingScale({
           />
         ))}
       </div>
-      {lowLabel || highLabel ? (
+      {captionVisible ? (
         <div
           aria-hidden="true"
           style={{
@@ -770,8 +797,7 @@ export function RatingScale({
             justifyContent: 'space-between',
             gap: '12px',
             marginTop: '8px',
-            fontSize: font.size.sm,
-            lineHeight: font.leading.snug,
+            ...typography.caption,
             color: color.muted,
           }}
         >
@@ -812,7 +838,8 @@ function RatingItem({ name, id, n, max, checked, disabled, onChange, ariaLabel, 
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: radius.md,
+        /* 52px de altura → raio lg (regra: ~¼ da menor dimensão) */
+        borderRadius: radius.lg,
         borderWidth: '1px',
         borderStyle: 'solid',
         borderColor: disabled ? color.disabledBorder : checked ? color.actionStrong : color.borderStrong,
@@ -1157,7 +1184,8 @@ function StepperButton({ icon, ariaLabel, disabled, onPress }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: radius.md,
+        /* controle de 44px → raio sm */
+        borderRadius: radius.sm,
         borderWidth: '1px',
         borderStyle: 'solid',
         borderColor: disabled ? color.disabledBorder : color.border,

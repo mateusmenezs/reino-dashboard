@@ -34,7 +34,7 @@
  *
  * ── TEXTO ───────────────────────────────────────────────────────────────────
  * Nenhum texto de pergunta, helper, opção ou aviso nasce aqui: tudo vem do
- * schema. O que existe neste arquivo é microcopy de interface (rótulo do input
+ * schema — inclusive QUAIS opções valem agora, via `getFieldOptions`. O que existe neste arquivo é microcopy de interface (rótulo do input
  * complementar do "outro"), reunido em `RENDERER_COPY` para revisão editorial.
  */
 
@@ -55,6 +55,7 @@ import {
   useField,
 } from '../ui/index.js'
 import { applyExclusive } from '../schema/options.js'
+import { getFieldOptions } from '../schema/questions.js'
 import AudienceCards from './AudienceCards.jsx'
 import EscapeToggle from './EscapeToggle.jsx'
 import PhoneField from './PhoneField.jsx'
@@ -66,7 +67,50 @@ export const RENDERER_COPY = Object.freeze({
   otherLabel: 'Conte em poucas palavras',
   otherPlaceholder: '',
   selectPlaceholder: 'Selecione uma opção',
+  /* Nome do subgrupo das saídas. Só o leitor de tela ouve: na tela, a
+     separação é feita pelo fio de 1px. */
+  deferredGroup: 'Se você ainda não sabe',
 })
+
+/**
+ * Uma opção é uma SAÍDA ("ainda não sei", "sem suporte", "quero recomendação")?
+ * Três sinais, todos vindos do schema — nenhum texto é comparado por acaso:
+ *   1. `option.exclusive` — opção que limpa as demais (schema/options.js);
+ *   2. `field.aiFallback` — o rótulo que o próprio campo declara como delegação;
+ *   3. o valor semântico estável `nao_sei` (ids de opção são imutáveis por
+ *      contrato, §3 — é chave, não texto de interface).
+ * Saídas são legítimas e continuam totalmente utilizáveis: só deixam de ser
+ * desenhadas como se fossem uma resposta de verdade a mais.
+ */
+export function isDeferredOption(field, option) {
+  if (!option) return false
+  if (option.exclusive === true) return true
+  if (field && field.aiFallback && option.label === field.aiFallback) return true
+  return option.value === 'nao_sei'
+}
+
+/** Separa as opções reais das saídas, preservando a ordem do schema. */
+function splitOptions(field, options) {
+  const primary = []
+  const deferred = []
+  for (const option of options) {
+    if (isDeferredOption(field, option)) deferred.push(option)
+    else primary.push(option)
+  }
+  /* Sem opção real não há o que recuar: a lista volta inteira. */
+  if (primary.length === 0 || deferred.length === 0) return { primary: options, deferred: [] }
+  return { primary, deferred }
+}
+
+/** Fio de 1px que separa as saídas das opções reais. */
+function DeferredRule() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{ height: '1px', background: color.border, margin: '16px 0 12px' }}
+    />
+  )
+}
 
 /** Tipos cujo `id` da pergunta fica no CONTÊINER do grupo, não num input. */
 const GROUP_TYPES = new Set([
@@ -198,8 +242,9 @@ function NativeSelect({ id, value, onChange, options, disabled, describedBy, inv
  * entre si — a regra mora em `applyExclusive` (schema/options.js), nunca aqui.
  * ======================================================================= */
 
-function MultiSelect({ id, value, onChange, options, disabled, labelledBy, describedBy, invalid }) {
+function MultiSelect({ id, field, value, onChange, options, disabled, labelledBy, describedBy, invalid }) {
   const selected = asList(value)
+  const { primary, deferred } = splitOptions(field, options)
 
   const toggle = useCallback(
     (optionValue, checked) => {
@@ -214,6 +259,19 @@ function MultiSelect({ id, value, onChange, options, disabled, labelledBy, descr
     [onChange, options, selected],
   )
 
+  const row = (option) => (
+    <CheckboxRow
+      key={option.value}
+      id={`${id || 'multi'}-${option.value}`}
+      name={`${id || 'multi'}-${option.value}`}
+      checked={selected.includes(option.value)}
+      disabled={disabled}
+      label={option.label}
+      description={option.description}
+      onChange={(checked) => toggle(option.value, checked)}
+    />
+  )
+
   return (
     <div
       id={id}
@@ -223,20 +281,70 @@ function MultiSelect({ id, value, onChange, options, disabled, labelledBy, descr
       aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
       aria-disabled={disabled || undefined}
-      style={{ display: 'grid', gap: '10px', outline: 'none' }}
+      style={{ outline: 'none' }}
     >
-      {options.map((option) => (
-        <CheckboxRow
-          key={option.value}
-          id={`${id || 'multi'}-${option.value}`}
-          name={`${id || 'multi'}-${option.value}`}
-          checked={selected.includes(option.value)}
-          disabled={disabled}
-          label={option.label}
-          description={option.description}
-          onChange={(checked) => toggle(option.value, checked)}
-        />
-      ))}
+      <div style={{ display: 'grid', gap: '10px' }}>{primary.map(row)}</div>
+      {deferred.length > 0 ? (
+        <React.Fragment>
+          <DeferredRule />
+          <div style={{ display: 'grid', gap: '10px' }}>{deferred.map(row)}</div>
+        </React.Fragment>
+      ) : null}
+    </div>
+  )
+}
+
+/* ==========================================================================
+ * RADIO com saídas
+ * As saídas ficam depois de um fio de 1px — o mesmo recurso que `ProductCards`
+ * já usa para a opção de menor peso. Os dois subgrupos compartilham o `name`,
+ * então as setas do teclado continuam percorrendo TODAS as opções como num
+ * radiogroup único; o segundo grupo ganha um nome próprio (invisível) para o
+ * leitor de tela não ouvir o mesmo rótulo duas vezes.
+ * ======================================================================= */
+
+function RadioWithEscapes({ field, groupId, value, options, onChange, disabled, describedBy }) {
+  const { primary, deferred } = splitOptions(field, options)
+  const deferredLabelId = `${field.id}-saidas`
+
+  if (deferred.length === 0) {
+    return (
+      <RadioGroup
+        id={groupId}
+        name={field.id}
+        value={asText(value)}
+        onChange={(next) => onChange && onChange(next)}
+        options={options}
+        disabled={disabled}
+        describedBy={describedBy}
+      />
+    )
+  }
+
+  return (
+    <div>
+      <RadioGroup
+        id={groupId}
+        name={field.id}
+        value={asText(value)}
+        onChange={(next) => onChange && onChange(next)}
+        options={primary}
+        disabled={disabled}
+        describedBy={describedBy}
+      />
+      <DeferredRule />
+      <span id={deferredLabelId} style={srOnly}>
+        {RENDERER_COPY.deferredGroup}
+      </span>
+      <RadioGroup
+        name={field.id}
+        value={asText(value)}
+        onChange={(next) => onChange && onChange(next)}
+        options={deferred}
+        disabled={disabled}
+        labelledBy={deferredLabelId}
+        describedBy={describedBy}
+      />
     </div>
   )
 }
@@ -325,7 +433,13 @@ function FieldRendererBody({
      chama onChange, então desmarcar devolve exatamente o que estava escrito. */
   const controlDisabled = disabled || escaped
 
-  const options = Array.isArray(field.options) ? field.options : []
+  /* SEMPRE por `getFieldOptions`, nunca por `field.options` direto: campos com
+     `optionsIf` (a Q13 só oferece os públicos que foram DESCRITOS na Q12) têm
+     a lista que vale calculada a partir das respostas. Ler `field.options` aqui
+     listava PÚBLICO C mesmo sem uma linha escrita sobre ele — e a IA receberia
+     "construa para o C" sem saber quem é o C. A função cai em `field.options`
+     sozinha quando não há `optionsIf`, então serve a todos os tipos. */
+  const options = getFieldOptions(field, answers)
   const otherOption = field.otherOption || null
   const otherId = otherOption ? otherOption.placeholderFieldId : null
   const showOther = Boolean(otherOption) && asText(value) === otherOption.value
@@ -353,10 +467,6 @@ function FieldRendererBody({
     [onAnswerChange, onOtherChange, otherId],
   )
 
-  const shared = useMemo(
-    () => ({ disabled: controlDisabled, invalid: Boolean(error) }),
-    [controlDisabled, error],
-  )
 
   return (
     <FieldShell
@@ -376,7 +486,8 @@ function FieldRendererBody({
         value={value}
         options={options}
         onChange={onChange}
-        shared={shared}
+        disabled={controlDisabled}
+        invalid={Boolean(error)}
         autoFocus={autoFocus}
         escaped={escaped}
       />
@@ -414,7 +525,18 @@ function FieldRendererBody({
  * O `disabled` real vai em cada input (não só opacidade) e o contêiner ganha
  * `aria-disabled` para o leitor de tela ouvir o mesmo que a tela mostra.
  */
-function FieldBody({ field, groupId, value, options, onChange, shared, autoFocus, escaped }) {
+function FieldBody({ field, groupId, value, options, onChange, disabled, invalid, autoFocus, escaped }) {
+  /* FieldBody é filho do FieldShell, então `useField()` devolve os ids que o
+     shell publicou — inclusive `describedBy` = "<id>-helper <id>-error".
+     Sem isto, os campos de GRUPO (públicos, repetidor, radios, multiselect,
+     cards) ficavam com `aria-invalid="true"` e nenhuma descrição: quem usa
+     leitor de tela e recebia o foco programático no primeiro erro ouvia
+     "grupo, inválido" e mais nada — nem o helper, nem a mensagem de erro. */
+  const shell = useField()
+  const shared = useMemo(
+    () => ({ disabled, invalid, describedBy: shell.describedBy }),
+    [disabled, invalid, shell.describedBy],
+  )
   const inner = renderControl({ field, groupId, value, options, onChange, shared, autoFocus })
   if (!escaped) return inner
   return (
@@ -499,12 +621,14 @@ function renderControl({ field, groupId, value, options, onChange, shared, autoF
 
     case 'radio':
       return (
-        <RadioGroup
-          id={groupId}
-          value={asText(value)}
-          onChange={(next) => emit(next)}
+        <RadioWithEscapes
+          field={field}
+          groupId={groupId}
+          value={value}
           options={options}
+          onChange={(next) => emit(next)}
           disabled={shared.disabled}
+          describedBy={shared.describedBy}
         />
       )
 
@@ -523,10 +647,12 @@ function renderControl({ field, groupId, value, options, onChange, shared, autoF
       return (
         <MultiSelect
           id={groupId}
+          field={field}
           value={value}
           onChange={(next) => emit(next)}
           options={options}
           labelledBy={`${field.id}-label`}
+          describedBy={shared.describedBy}
           disabled={shared.disabled}
           invalid={shared.invalid}
         />
@@ -545,6 +671,7 @@ function renderControl({ field, groupId, value, options, onChange, shared, autoF
           maxLength={field.maxLength > 0 ? field.maxLength : 0}
           placeholder={field.placeholder}
           labelledBy={`${field.id}-label`}
+          describedBy={shared.describedBy}
           disabled={shared.disabled}
           invalid={shared.invalid}
         />
@@ -566,6 +693,7 @@ function renderControl({ field, groupId, value, options, onChange, shared, autoF
           itemMaxLength={field.itemMaxLength || 0}
           placeholder={field.placeholder}
           labelledBy={`${field.id}-label`}
+          describedBy={shared.describedBy}
           disabled={shared.disabled}
           invalid={shared.invalid}
         />
@@ -580,6 +708,7 @@ function renderControl({ field, groupId, value, options, onChange, shared, autoF
           options={options}
           aiFallback={field.aiFallback}
           labelledBy={`${field.id}-label`}
+          describedBy={shared.describedBy}
           disabled={shared.disabled}
           invalid={shared.invalid}
         />

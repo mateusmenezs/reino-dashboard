@@ -27,16 +27,7 @@
  */
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import {
-  Button,
-  Icon,
-  IconButton,
-  TextInput,
-  color,
-  font,
-  radius,
-  shadow,
-} from '../ui/index.js'
+import { Button, IconButton, TextInput, color, font } from '../ui/index.js'
 
 /** Microcopy de apoio (texto de pergunta vem sempre do schema). */
 export const REPEATER_COPY = Object.freeze({
@@ -201,60 +192,53 @@ export function Repeater({
       style={{ fontFamily: font.family, outline: 'none', ...style }}
       {...rest}
     >
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '10px' }}>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '16px' }}>
         {rows.map((row, index) => {
           const inputId = `${id || 'repeater'}-${row.key}`
           const numberLabel = `${itemLabelPrefix} ${index + 1}`
           return (
             <li key={row.key} style={{ margin: 0 }}>
-              <div
+              {/* UMA superfície por item: o rótulo "PASSO N" é texto sobre a
+                  página e o único retângulo desenhado é o próprio campo.
+                  Antes havia um cartão em volta do cartão do input. */}
+              <label
+                htmlFor={inputId}
                 style={{
-                  padding: '10px 12px 12px',
-                  borderRadius: radius.lg,
-                  border: `1px solid ${color.border}`,
-                  background: color.surface,
-                  boxShadow: shadow.xs,
+                  display: 'block',
+                  marginBottom: '6px',
+                  fontSize: font.size.xs,
+                  fontWeight: font.weight.bold,
+                  letterSpacing: font.tracking.wide,
+                  color: color.actionText,
+                  textTransform: 'uppercase',
                 }}
               >
-                <label
-                  htmlFor={inputId}
-                  style={{
-                    display: 'block',
-                    marginBottom: '8px',
-                    fontSize: font.size.xs,
-                    fontWeight: font.weight.bold,
-                    letterSpacing: font.tracking.wide,
-                    color: color.actionText,
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {numberLabel}
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-                    <TextInput
-                      id={inputId}
-                      name={inputId}
-                      ref={(el) => {
-                        if (el) inputsRef.current.set(row.key, el)
-                        else inputsRef.current.delete(row.key)
-                      }}
-                      value={row.text}
-                      onChange={(next) => setText(row.key, next)}
-                      placeholder={placeholder}
-                      maxLength={itemMaxLength > 0 ? itemMaxLength : undefined}
-                      disabled={disabled}
-                      describedBy={describedBy}
-                      invalid={false}
-                    />
-                  </div>
-                  <IconButton
-                    icon="minus"
-                    label={REPEATER_COPY.remove(itemLabelPrefix, index + 1)}
+                {numberLabel}
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+                  <TextInput
+                    id={inputId}
+                    name={inputId}
+                    ref={(el) => {
+                      if (el) inputsRef.current.set(row.key, el)
+                      else inputsRef.current.delete(row.key)
+                    }}
+                    value={row.text}
+                    onChange={(next) => setText(row.key, next)}
+                    placeholder={placeholder}
+                    maxLength={itemMaxLength > 0 ? itemMaxLength : undefined}
                     disabled={disabled}
-                    onClick={() => removeRow(row.key)}
+                    describedBy={describedBy}
+                    invalid={false}
                   />
                 </div>
+                <IconButton
+                  icon="minus"
+                  label={REPEATER_COPY.remove(itemLabelPrefix, index + 1)}
+                  disabled={disabled}
+                  onClick={() => removeRow(row.key)}
+                />
               </div>
             </li>
           )
@@ -272,12 +256,9 @@ export function Repeater({
         }}
       >
         <span ref={addRef} style={{ display: 'inline-flex' }}>
-          <Button
-            variant="secondary"
-            onClick={addRow}
-            disabled={disabled || atLimit}
-            leading={<Icon name="plus" size={18} strokeWidth={2.25} />}
-          >
+          {/* Sem `leading`: o rótulo vem do schema e já começa com "+".
+              Um ícone de mais aqui produzia "+ + Adicionar passo". */}
+          <Button variant="secondary" onClick={addRow} disabled={disabled || atLimit}>
             {addLabel}
           </Button>
         </span>

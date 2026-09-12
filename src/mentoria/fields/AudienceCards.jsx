@@ -28,14 +28,25 @@
  *
  * ── SELO "MAIOR POTENCIAL" ──────────────────────────────────────────────────
  * Aparece só quando há pelo menos DOIS públicos pontuados (sem comparação o selo
- * não significa nada). EM CASO DE EMPATE, TODOS OS EMPATADOS RECEBEM O SELO —
- * nunca escolhemos um vencedor arbitrário. O selo diz "maior potencial", jamais
- * "esta é a persona certa": a escolha é da pergunta 13, e a recomendação é da IA.
+ * não significa nada) E existe um LÍDER ÚNICO. Com A/B/C empatados, o selo em
+ * todos ao mesmo tempo apagava a única informação que a tela existe para dar —
+ * parecia defeito. Em empate, os empatados recebem a marca neutra de empate
+ * (`AUDIENCE_COPY.tie`), que informa sem eleger ninguém. Nunca escolhemos um
+ * vencedor arbitrário. O selo diz "maior potencial", jamais "esta é a persona
+ * certa": a escolha é da pergunta 13, e a recomendação é da IA.
+ *
+ * ── UM PÚBLICO EM FOCO POR VEZ ──────────────────────────────────────────────
+ * Com A, B e C descritos, mostrar as 9 notas de uma vez produzia 2.877px em
+ * 320px (3,4 telas de rolagem) e 12 controles numa "pergunta" — a única tela
+ * cansativa do fluxo. Agora só o público EM FOCO abre descrição e notas; os
+ * demais ficam como linha resumida (rótulo + prévia + pontuação) e abrem com um
+ * toque. Nada é escondido: a linha fechada mostra o que já foi respondido.
  */
 
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Badge,
+  Icon,
   RatingScale,
   Reveal,
   TextArea,
@@ -52,8 +63,16 @@ export const AUDIENCE_COPY = Object.freeze({
   scoreLabel: (total, maxTotal) => `${total}/${maxTotal}`,
   scoreAria: (audience, total, maxTotal) => `${audience}: ${total} de ${maxTotal} pontos.`,
   scorePending: 'Dê as três notas para fechar a pontuação.',
-  low: '1',
-  high: '5',
+  /* Rótulos das pontas da escala. Precisam ser PALAVRA: a primitiva monta o
+     nome acessível como "valor — rótulo", e "1 — 1" / "5 — 5" não informa nada.
+     Ficam neutros em gênero para servir aos três critérios. */
+  low: 'Pouco',
+  high: 'Muito',
+  /* Empate: informa sem eleger ninguém. */
+  tie: 'Empate técnico',
+  empty: 'Ainda não descrito',
+  expand: (label) => `Abrir ${label.toLocaleLowerCase('pt-BR')}`,
+  collapse: (label) => `Fechar ${label.toLocaleLowerCase('pt-BR')}`,
 })
 
 const asText = (v) => String(v == null ? '' : v)
@@ -141,11 +160,39 @@ export function AudienceCards({
   )
 
   /* ----------------------------------------------------- selo de maior */
+  /* Só há o que premiar com pelo menos dois públicos pontuados. E só existe
+     "maior potencial" quando alguém está SOZINHO no topo: com A/B/C iguais o
+     selo em todos significaria o mesmo que selo em ninguém. */
   const ranked = rows.filter((r) => r.described && r.total > 0)
   const best = ranked.reduce((acc, r) => Math.max(acc, r.total), 0)
-  /* comparar exige pelo menos dois concorrentes */
-  const showSelo = ranked.length >= 2 && best > 0
-  const winners = showSelo ? ranked.filter((r) => r.total === best).map((r) => r.audience.value) : []
+  const leaders = best > 0 ? ranked.filter((r) => r.total === best) : []
+  const comparable = ranked.length >= 2 && best > 0
+  const uniqueLeader = comparable && leaders.length === 1 ? leaders[0].audience.value : null
+  const tied = comparable && leaders.length > 1 ? leaders.map((r) => r.audience.value) : []
+
+  /* ------------------------------------------------- público em foco */
+  const firstOpen = useMemo(() => {
+    const pending = rows.find((r) => !r.complete)
+    const target = pending || rows[0]
+    return target ? target.audience.value : null
+  }, [rows])
+
+  const [openId, setOpenId] = useState(firstOpen)
+
+  /* Erro de validação não pode apontar para um cartão fechado: o campo que
+     falta tem de estar à vista quando o foco chega aqui. */
+  useEffect(() => {
+    if (!invalid) return
+    const pending = rows.find(
+      (r) => requiredAudiences.includes(r.audience.value) && !r.complete,
+    )
+    if (pending) setOpenId(pending.audience.value)
+  }, [invalid, rows, requiredAudiences])
+
+  const toggle = useCallback(
+    (audienceId) => setOpenId((current) => (current === audienceId ? null : audienceId)),
+    [],
+  )
 
   /* --------------------------------------------------------- escritura */
   const write = useCallback(
@@ -183,120 +230,194 @@ export function AudienceCards({
       aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
       aria-disabled={disabled || undefined}
-      style={{ display: 'grid', gap: '14px', fontFamily: font.family, outline: 'none', ...style }}
+      style={{ display: 'grid', gap: '10px', fontFamily: font.family, outline: 'none', ...style }}
       {...rest}
     >
       {rows.map((row) => {
         const audienceId = row.audience.value
         const cardId = `${baseId}-${audienceId}`
         const textId = `${cardId}-descricao`
+        const bodyId = `${cardId}-corpo`
         const isOptional = !requiredAudiences.includes(audienceId)
-        const isWinner = winners.includes(audienceId)
+        const isLeader = uniqueLeader === audienceId
+        const isTied = tied.includes(audienceId)
+        const open = openId === audienceId
 
         return (
           <section
             key={audienceId}
             aria-labelledby={`${cardId}-titulo`}
             style={{
-              padding: '16px',
               borderRadius: radius.xl,
-              border: `1px solid ${isWinner ? color.action : color.border}`,
-              background: isWinner ? color.selectedBg : color.surface,
-              boxShadow: isWinner ? shadow.sm : shadow.xs,
+              border: `1px solid ${isLeader ? color.action : color.border}`,
+              background: isLeader ? color.selectedBg : color.surface,
+              boxShadow: isLeader ? shadow.sm : shadow.xs,
               /* borda troca de cor sem mudar espessura: nada "pula" 1px */
               transition: 'none',
+              overflow: 'hidden',
             }}
           >
-            {/* ---------------------------------------------- cabeçalho */}
-            <div
+            {/* -------------------------------------- cabeçalho / gatilho */}
+            <button
+              type="button"
+              onClick={() => toggle(audienceId)}
+              aria-expanded={open}
+              aria-controls={bodyId}
+              aria-label={
+                open ? AUDIENCE_COPY.collapse(row.audience.label) : AUDIENCE_COPY.expand(row.audience.label)
+              }
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
                 gap: '10px',
-                flexWrap: 'wrap',
-                marginBottom: '10px',
-                minHeight: '26px',
+                width: '100%',
+                minHeight: 52,
+                margin: 0,
+                padding: '12px 14px',
+                border: 0,
+                background: 'transparent',
+                textAlign: 'left',
+                cursor: disabled ? 'default' : 'pointer',
+                fontFamily: font.family,
+                WebkitTapHighlightColor: 'transparent',
+                outline: 'revert',
               }}
             >
-              <span
-                id={`${cardId}-titulo`}
-                style={{
-                  fontSize: font.size.sm,
-                  fontWeight: font.weight.bold,
-                  letterSpacing: font.tracking.wide,
-                  color: color.actionText,
-                  textTransform: 'uppercase',
-                }}
-              >
-                {row.audience.label}
-                {isOptional ? (
+              <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+                <span
+                  id={`${cardId}-titulo`}
+                  style={{
+                    display: 'block',
+                    fontSize: font.size.sm,
+                    fontWeight: font.weight.bold,
+                    letterSpacing: font.tracking.wide,
+                    color: color.actionText,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {row.audience.label}
+                  {isOptional ? (
+                    <span
+                      style={{
+                        marginLeft: '8px',
+                        fontSize: font.size.xs,
+                        fontWeight: font.weight.medium,
+                        letterSpacing: font.tracking.normal,
+                        color: color.muted,
+                        textTransform: 'none',
+                      }}
+                    >
+                      {AUDIENCE_COPY.optional}
+                    </span>
+                  ) : null}
+                </span>
+
+                {isLeader || isTied ? (
+                  <span style={{ display: 'block', marginTop: '6px' }}>
+                    {isLeader ? (
+                      <Badge tone="accent">{scale.selo}</Badge>
+                    ) : (
+                      <Badge tone="neutral">{AUDIENCE_COPY.tie}</Badge>
+                    )}
+                  </span>
+                ) : null}
+
+                {/* linha fechada informa o que já foi respondido */}
+                {!open ? (
                   <span
                     style={{
-                      marginLeft: '8px',
-                      fontSize: font.size.xs,
-                      fontWeight: font.weight.medium,
-                      letterSpacing: font.tracking.normal,
-                      color: color.muted,
-                      textTransform: 'none',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      marginTop: '4px',
+                      fontSize: font.size.base,
+                      lineHeight: font.leading.normal,
+                      color: row.described ? color.inkSoft : color.muted,
                     }}
                   >
-                    {AUDIENCE_COPY.optional}
+                    {row.described ? row.descricao : AUDIENCE_COPY.empty}
                   </span>
                 ) : null}
               </span>
 
-              {isWinner ? <Badge tone="accent">{scale.selo}</Badge> : null}
-            </div>
+              {!open && row.described ? (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    flex: 'none',
+                    fontSize: font.size.base,
+                    fontWeight: font.weight.bold,
+                    color: isLeader ? color.actionText : color.inkSoft,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {AUDIENCE_COPY.scoreLabel(row.total, maxTotal)}
+                </span>
+              ) : null}
 
-            {/* --------------------------------------------- descrição */}
-            {/* o título da seção já mostra "PÚBLICO A" na tela; o <label> real
-                existe para o leitor de tela não ouvir um textarea anônimo */}
-            <label htmlFor={textId} style={srOnly}>
-              {row.audience.label}
-            </label>
-            <TextArea
-              id={textId}
-              name={textId}
-              rows={2}
-              value={row.descricao}
-              onChange={(next) => write(audienceId, { descricao: next })}
-              placeholder={placeholder}
-              maxLength={maxLength > 0 ? maxLength : undefined}
-              disabled={disabled}
-              describedBy={describedBy}
-              invalid={false}
-            />
+              <Icon
+                name="chevronRight"
+                size={18}
+                color={color.muted}
+                style={{ flex: 'none', transform: open ? 'rotate(90deg)' : 'none' }}
+              />
+            </button>
 
-            {/* ------------------------------------------------- notas */}
-            {row.described ? (
-              <Reveal style={{ marginTop: '14px', display: 'grid', gap: '16px' }}>
-                {criteria.map((criterio) => (
-                  <RatingScale
-                    key={criterio.value}
-                    id={`${cardId}-${criterio.value}`}
-                    name={`${cardId}-${criterio.value}`}
-                    label={`${criterio.label} — ${criterio.question}`}
-                    value={row.scores[criterio.value] || undefined}
-                    min={scale.min || 1}
-                    max={scale.max || 5}
-                    lowLabel={AUDIENCE_COPY.low}
-                    highLabel={AUDIENCE_COPY.high}
+            {/* ----------------------------------------------------- corpo */}
+            <div id={bodyId} hidden={!open}>
+              {open ? (
+                <div style={{ padding: '0 14px 14px' }}>
+                  {/* o cabeçalho já mostra "PÚBLICO A" na tela; o <label> real
+                      existe para o leitor de tela não ouvir um textarea anônimo */}
+                  <label htmlFor={textId} style={srOnly}>
+                    {row.audience.label}
+                  </label>
+                  <TextArea
+                    id={textId}
+                    name={textId}
+                    rows={2}
+                    autoGrow
+                    value={row.descricao}
+                    onChange={(next) => write(audienceId, { descricao: next })}
+                    placeholder={placeholder}
+                    maxLength={maxLength > 0 ? maxLength : undefined}
                     disabled={disabled}
-                    onChange={(n) => write(audienceId, { [criterio.value]: n })}
+                    describedBy={describedBy}
+                    invalid={false}
                   />
-                ))}
 
-                <ScoreMeter
-                  id={`${cardId}-score`}
-                  label={row.audience.label}
-                  total={row.total}
-                  maxTotal={maxTotal}
-                  complete={row.complete}
-                  highlighted={isWinner}
-                />
-              </Reveal>
-            ) : null}
+                  {row.described ? (
+                    <Reveal style={{ marginTop: '14px', display: 'grid', gap: '16px' }}>
+                      {criteria.map((criterio) => (
+                        <RatingScale
+                          key={criterio.value}
+                          id={`${cardId}-${criterio.value}`}
+                          name={`${cardId}-${criterio.value}`}
+                          label={`${criterio.label} — ${criterio.question}`}
+                          value={row.scores[criterio.value] || undefined}
+                          min={scale.min || 1}
+                          max={scale.max || 5}
+                          lowLabel={AUDIENCE_COPY.low}
+                          highLabel={AUDIENCE_COPY.high}
+                          disabled={disabled}
+                          onChange={(n) => write(audienceId, { [criterio.value]: n })}
+                        />
+                      ))}
+
+                      <ScoreMeter
+                        id={`${cardId}-score`}
+                        label={row.audience.label}
+                        total={row.total}
+                        maxTotal={maxTotal}
+                        complete={row.complete}
+                        highlighted={isLeader}
+                      />
+                    </Reveal>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </section>
         )
       })}

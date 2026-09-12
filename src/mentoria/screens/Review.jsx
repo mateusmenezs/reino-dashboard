@@ -3,8 +3,24 @@
  * Dono: AGENTE E.
  *
  * Princípio: a revisão NÃO é um formulário gigante despejado numa página.
- * São seis cartões — um por etapa — que levam de volta ao lugar certo, mais um
- * resumo navegável (pergunta → resposta curta → editar) que abre sob demanda.
+ * São seis linhas — uma por etapa — e cada uma ABRE E FECHA SOZINHA.
+ *
+ * ── O QUE MUDOU E POR QUÊ ───────────────────────────────────────────────────
+ * 1. Era tudo-ou-nada: um botão abria as 37 perguntas de uma vez, ~9.700px de
+ *    texto corrido em 320px (11 telas numa rolagem só). O cliente proibiu
+ *    "excesso de texto simultâneo na tela". Agora cada etapa é um acordeão:
+ *    abre 5–8 perguntas, não 37.
+ * 2. A resposta pesava MAIS que a pergunta (16px/400 navy contra 13px cinza).
+ *    Invertido: a pergunta é o rótulo (âncora da leitura) e a resposta vem em
+ *    tom secundário.
+ * 3. Havia 37 botões "editar" ocupando ~25% da largura e espremendo a resposta
+ *    numa coluna estreita. Sumiram: a LINHA INTEIRA é o alvo de toque, com o
+ *    mesmo destino e o mesmo foco programático de antes.
+ * 4. Fechada, a tela mostrava seis cartões menta idênticos dizendo só
+ *    "Concluída" — e chegava a dizer "Sem pendências" com o briefing vazio,
+ *    porque lia `progress.perStepCounts`, que o store não publica. A contagem
+ *    agora é feita aqui, a partir do schema, e a linha diz o que realmente
+ *    existe: respostas, delegações à IA e o que falta.
  *
  * Se faltar alguma resposta obrigatória, o CTA principal não engole o toque nem
  * dispara alert: ele mostra o que falta, diz em que etapa está e oferece um
@@ -15,11 +31,9 @@ import React, { useCallback, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
-  Card,
   Icon,
   ProgressBar,
   Reveal,
-  SectionTitle,
   color,
   control,
   font,
@@ -111,90 +125,255 @@ function shortAnswer(field, answers) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Cartão de etapa                                                     */
+/* Contagem real por etapa                                             */
 /* ------------------------------------------------------------------ */
 
-function StepCard({ step, counts, done, onOpen }) {
-  const total = counts ? counts.total : 0
-  const answered = counts ? counts.answered : 0
-  const statusText = done
-    ? 'Concluída'
-    : total === 0
-      ? 'Sem pendências'
-      : `${answered} de ${total}`
+/**
+ * O que esta etapa tem, de verdade, agora.
+ *
+ * O store não publica `perStepCounts` — a tela lia essa chave inexistente e
+ * caía no ramo `total === 0`, que dizia "Sem pendências" mesmo com o briefing
+ * inteiro em branco. Aqui a conta é feita sobre os campos VISÍVEIS para estas
+ * respostas, que é a mesma base usada pela validação e pela navegação.
+ *
+ * @returns {{fields: object[], answered: number, total: number,
+ *            delegated: number, pending: number, done: boolean}}
+ */
+function countStep(step, answers) {
+  const fields = getVisibleScreens(step, answers).flatMap((screen) =>
+    getVisibleFields(screen, answers),
+  )
+  let answered = 0
+  let delegated = 0
+  let pending = 0
+  for (const field of fields) {
+    const escaped = isFieldEscaped(field, answers)
+    if (escaped) {
+      delegated += 1
+      answered += 1
+      continue
+    }
+    if (hasAnswer(field, answers)) answered += 1
+    else if (isFieldRequired(field, answers)) pending += 1
+  }
+  return { fields, answered, total: fields.length, delegated, pending, done: pending === 0 }
+}
+
+/** Linha de status da etapa. Nunca diz "sem pendências" com pergunta em aberto. */
+function statusOf(counts) {
+  if (counts.pending > 0) {
+    return {
+      text:
+        counts.pending === 1
+          ? `${counts.answered} de ${counts.total} · falta 1`
+          : `${counts.answered} de ${counts.total} · faltam ${counts.pending}`,
+      tone: 'pending',
+    }
+  }
+  const respostas = counts.answered === 1 ? '1 resposta' : `${counts.answered} respostas`
+  if (counts.delegated > 0) {
+    const ia = counts.delegated === 1 ? '1 delegada à IA' : `${counts.delegated} delegadas à IA`
+    return { text: `${respostas} · ${ia}`, tone: 'done' }
+  }
+  return { text: respostas, tone: 'done' }
+}
+
+/* ------------------------------------------------------------------ */
+/* Acordeão de etapa                                                   */
+/* ------------------------------------------------------------------ */
+
+function StepAccordion({ step, counts, open, onToggle, onOpenStep, answers, onEdit }) {
+  const status = statusOf(counts)
+  const panelId = `m-rev-${step.id}`
+  const headId = `m-rev-${step.id}-head`
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label={`${step.kicker}: ${titleCase(step.title)} — ${statusText}. Abrir para editar.`}
+    <section
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        width: '100%',
-        minHeight: control.touchMin + 16,
-        margin: 0,
-        padding: '14px 14px',
-        textAlign: 'left',
         borderRadius: radius.xl,
-        borderWidth: '1px',
-        borderStyle: 'solid',
-        borderColor: done ? color.successBorder : color.border,
-        background: done ? color.successBg : color.surface,
+        border: `1px solid ${color.border}`,
+        background: color.surface,
         boxShadow: shadow.xs,
-        cursor: 'pointer',
-        fontFamily: font.family,
-        WebkitTapHighlightColor: 'transparent',
+        overflow: 'hidden',
       }}
     >
-      <span
-        aria-hidden="true"
+      <button
+        type="button"
+        id={headId}
+        data-step-accordion={step.id}
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={panelId}
         style={{
-          display: 'inline-flex',
+          display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          flex: 'none',
-          width: 30,
-          height: 30,
-          borderRadius: radius.pill,
-          background: done ? color.success : color.surfaceSunken,
-          color: done ? color.onDark : color.muted,
-          fontSize: font.size.xs,
-          fontWeight: font.weight.bold,
-          fontVariantNumeric: 'tabular-nums',
-          lineHeight: 1,
+          gap: '12px',
+          width: '100%',
+          minHeight: control.touchMin + 16,
+          margin: 0,
+          padding: '14px',
+          textAlign: 'left',
+          border: 0,
+          background: 'transparent',
+          cursor: 'pointer',
+          fontFamily: font.family,
+          WebkitTapHighlightColor: 'transparent',
         }}
       >
-        {done ? <Icon name="check" size={17} strokeWidth={2.75} /> : step.index}
-      </span>
-
-      <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+        {/* superfície neutra + marca de conclusão discreta: o número vira um
+            visto quando a etapa fecha, sem pintar o cartão inteiro de menta */}
         <span
+          aria-hidden="true"
           style={{
-            display: 'block',
-            fontSize: font.size.base,
-            fontWeight: font.weight.semibold,
-            letterSpacing: font.tracking.snug,
-            color: color.ink,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flex: 'none',
+            width: 30,
+            height: 30,
+            borderRadius: radius.pill,
+            border: `1px solid ${counts.done ? color.successBorder : color.border}`,
+            background: counts.done ? color.successBg : color.surfaceSunken,
+            color: counts.done ? color.success : color.muted,
+            fontSize: font.size.xs,
+            fontWeight: font.weight.bold,
+            fontVariantNumeric: 'tabular-nums',
+            lineHeight: 1,
           }}
         >
-          {titleCase(step.title)}
+          {counts.done ? <Icon name="check" size={16} strokeWidth={2.75} /> : step.index}
         </span>
-        <span
-          style={{
-            display: 'block',
-            marginTop: '2px',
-            fontSize: font.size.sm,
-            color: done ? color.success : color.muted,
-          }}
-        >
-          {statusText}
-        </span>
-      </span>
 
-      <Icon name="chevronRight" size={18} color={color.muted} />
-    </button>
+        <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+          <span
+            style={{
+              display: 'block',
+              fontSize: font.size.base,
+              fontWeight: font.weight.semibold,
+              letterSpacing: font.tracking.snug,
+              color: color.ink,
+            }}
+          >
+            {titleCase(step.title)}
+          </span>
+          <span
+            style={{
+              display: 'block',
+              marginTop: '2px',
+              fontSize: font.size.sm,
+              fontVariantNumeric: 'tabular-nums',
+              color: status.tone === 'pending' ? color.warning : color.muted,
+            }}
+          >
+            {status.text}
+          </span>
+        </span>
+
+        <Icon
+          name="chevronRight"
+          size={18}
+          color={color.muted}
+          style={{ flex: 'none', transform: open ? 'rotate(90deg)' : 'none' }}
+        />
+      </button>
+
+      <div id={panelId} role="region" aria-labelledby={headId} hidden={!open}>
+        {open ? (
+          <React.Fragment>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              {counts.fields.map((field) => (
+                <AnswerRow key={field.id} field={field} answers={answers} onEdit={onEdit} />
+              ))}
+            </ul>
+            <div style={{ padding: '10px 8px 12px', borderTop: `1px solid ${color.border}` }}>
+              <Button variant="ghost" onClick={onOpenStep} style={{ padding: '0 12px' }}>
+                Abrir a etapa inteira →
+              </Button>
+            </div>
+          </React.Fragment>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Uma pergunta e a resposta dela.
+ * A linha INTEIRA é o botão de editar — era isso ou 37 botõezinhos "editar"
+ * comendo um quarto da largura. A pergunta é o rótulo; a resposta vem em tom
+ * secundário, logo abaixo, com a largura toda para ela.
+ */
+function AnswerRow({ field, answers, onEdit }) {
+  const { text, tone } = shortAnswer(field, answers)
+  const missing = !hasAnswer(field, answers)
+  const required = isFieldRequired(field, answers)
+
+  return (
+    <li style={{ margin: 0, borderTop: `1px solid ${color.border}` }}>
+      <button
+        type="button"
+        onClick={() => onEdit(field.id)}
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+          width: '100%',
+          minHeight: control.touchMin,
+          margin: 0,
+          padding: '14px',
+          textAlign: 'left',
+          border: 0,
+          background: 'transparent',
+          cursor: 'pointer',
+          fontFamily: font.family,
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+          <span
+            style={{
+              display: 'block',
+              fontSize: font.size.sm,
+              fontWeight: font.weight.semibold,
+              lineHeight: font.leading.snug,
+              color: color.inkSoft,
+            }}
+          >
+            {field.number ? (
+              <span style={{ color: color.actionText }}>{field.number}. </span>
+            ) : null}
+            {field.label}
+          </span>
+
+          <span
+            style={{
+              display: 'block',
+              marginTop: '6px',
+              fontSize: font.size.base,
+              fontWeight: font.weight.regular,
+              lineHeight: font.leading.normal,
+              color: color.muted,
+              wordBreak: 'break-word',
+            }}
+          >
+            {missing ? (
+              <Badge tone={required ? 'warning' : 'neutral'}>
+                {required ? 'Ainda sem resposta' : 'Deixado em branco'}
+              </Badge>
+            ) : tone !== 'answer' ? (
+              <span style={{ color: color.actionText, fontWeight: font.weight.medium }}>
+                {text}
+              </span>
+            ) : (
+              text
+            )}
+          </span>
+          <span style={srOnly}> — tocar para editar esta resposta.</span>
+        </span>
+
+        <Icon name="chevronRight" size={16} color={color.muted} style={{ flex: 'none', marginTop: '2px' }} />
+      </button>
+    </li>
   )
 }
 
@@ -214,7 +393,10 @@ export default function Review() {
     setErrors,
   } = useBriefing()
 
-  const [detailOpen, setDetailOpen] = useState(false)
+  /* Um acordeão por etapa: cada uma abre e fecha sozinha. Podem coexistir
+     abertas (quem revisa duas etapas seguidas não perde a primeira), mas
+     nenhuma abre por padrão — a tela chega compacta. */
+  const [openSteps, setOpenSteps] = useState(() => ({}))
   const [pending, setPending] = useState(null)
   const sendingRef = useRef(false)
   const noticeRef = useRef(null)
@@ -222,14 +404,23 @@ export default function Review() {
   const sending = submission.status === 'sending'
 
   const summary = useMemo(
-    () =>
-      STEPS.map((step) => ({
-        step,
-        fields: getVisibleScreens(step, answers).flatMap((screen) =>
-          getVisibleFields(screen, answers),
-        ),
-      })),
+    () => STEPS.map((step) => ({ step, counts: countStep(step, answers) })),
     [answers],
+  )
+
+  const toggleStep = useCallback(
+    (stepId) => setOpenSteps((current) => ({ ...current, [stepId]: !current[stepId] })),
+    [],
+  )
+
+  const editField = useCallback(
+    (fieldId) => {
+      goToField(fieldId)
+      if (typeof window !== 'undefined') {
+        window.setTimeout(() => focusField(fieldId, { delay: 0 }), 180)
+      }
+    },
+    [goToField],
   )
 
   const openStep = useCallback(
@@ -349,25 +540,26 @@ export default function Review() {
       </Reveal>
 
       <Reveal delay={60}>
-        <div style={{ marginTop: '24px', display: 'grid', gap: '10px' }}>
-          {STEPS.map((step) => (
-            <StepCard
+        <Body style={{ marginTop: '22px' }}>
+          Toque em uma etapa para conferir as respostas. Toque em uma resposta para editá-la.
+        </Body>
+
+        <div style={{ marginTop: '14px', display: 'grid', gap: '10px' }}>
+          {summary.map(({ step, counts }) => (
+            <StepAccordion
               key={step.id}
               step={step}
-              counts={progress.perStepCounts ? progress.perStepCounts[step.id] : null}
-              done={(progress.completedSteps || []).indexOf(step.id) >= 0}
-              onOpen={() => openStep(step.index - 1)}
+              counts={counts}
+              answers={answers}
+              open={Boolean(openSteps[step.id])}
+              onToggle={() => toggleStep(step.id)}
+              onOpenStep={() => openStep(step.index - 1)}
+              onEdit={editField}
             />
           ))}
         </div>
-      </Reveal>
 
-      <Reveal delay={90}>
-        <Body style={{ marginTop: '24px' }}>
-          Revise suas respostas se quiser ou deixe nossa IA conectar os pontos.
-        </Body>
-
-        <div ref={noticeRef} style={{ marginTop: pending ? '16px' : 0 }}>
+        <div ref={noticeRef} style={{ marginTop: pending ? '18px' : 0 }}>
           {pending ? (
             <Note tone="warning" icon={<Icon name="alert" size={18} />}>
               <span style={{ display: 'block', fontWeight: font.weight.semibold }}>
@@ -390,126 +582,8 @@ export default function Review() {
             </Note>
           ) : null}
         </div>
-
-        <Button
-          variant="secondary"
-          full
-          onClick={() => setDetailOpen((open) => !open)}
-          aria-expanded={detailOpen}
-          aria-controls="m-review-detail"
-          style={{ marginTop: '16px' }}
-        >
-          {detailOpen ? 'FECHAR RESUMO' : 'REVISAR RESPOSTAS'}
-        </Button>
       </Reveal>
 
-      <div id="m-review-detail" hidden={!detailOpen}>
-        {detailOpen ? (
-          <div style={{ marginTop: '24px', display: 'grid', gap: '18px' }}>
-            {summary.map(({ step, fields }) => (
-              <Card key={step.id} padded={false} style={{ overflow: 'visible' }}>
-                <div
-                  style={{
-                    padding: '16px 16px 12px',
-                    borderBottom: `1px solid ${color.border}`,
-                  }}
-                >
-                  <SectionTitle level={2} kicker={step.kicker} title={titleCase(step.title)} />
-                </div>
-
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                  {fields.map((field, index) => {
-                    const { text, tone } = shortAnswer(field, answers)
-                    const missing = !hasAnswer(field, answers)
-                    const required = isFieldRequired(field, answers)
-                    return (
-                      <li
-                        key={field.id}
-                        style={{
-                          padding: '14px 16px',
-                          borderBottom:
-                            index === fields.length - 1 ? 'none' : `1px solid ${color.border}`,
-                        }}
-                      >
-                        <p
-                          style={{
-                            margin: 0,
-                            fontSize: font.size.sm,
-                            fontWeight: font.weight.semibold,
-                            lineHeight: font.leading.snug,
-                            color: color.inkSoft,
-                          }}
-                        >
-                          {field.number ? (
-                            <span style={{ color: color.actionText }}>{field.number}. </span>
-                          ) : null}
-                          {field.label}
-                        </p>
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            justifyContent: 'space-between',
-                            gap: '12px',
-                            marginTop: '6px',
-                          }}
-                        >
-                          <p
-                            style={{
-                              margin: 0,
-                              flex: '1 1 auto',
-                              minWidth: 0,
-                              fontSize: font.size.base,
-                              lineHeight: font.leading.normal,
-                              color: missing ? color.muted : color.ink,
-                              wordBreak: 'break-word',
-                            }}
-                          >
-                            {missing ? (
-                              <Badge tone={required ? 'warning' : 'neutral'}>
-                                {required ? 'Ainda sem resposta' : 'Deixado em branco'}
-                              </Badge>
-                            ) : tone !== 'answer' ? (
-                              <span
-                                style={{
-                                  color: color.actionText,
-                                  fontWeight: font.weight.medium,
-                                }}
-                              >
-                                {text}
-                              </span>
-                            ) : (
-                              text
-                            )}
-                          </p>
-
-                          <Button
-                            variant="ghost"
-                            onClick={() => {
-                              goToField(field.id)
-                              if (typeof window !== 'undefined') {
-                                window.setTimeout(
-                                  () => focusField(field.id, { delay: 0 }),
-                                  180,
-                                )
-                              }
-                            }}
-                            style={{ flex: 'none', padding: '0 10px' }}
-                          >
-                            editar
-                            <span style={srOnly}> a resposta de: {field.label}</span>
-                          </Button>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </Card>
-            ))}
-          </div>
-        ) : null}
-      </div>
     </ScreenShell>
   )
 }

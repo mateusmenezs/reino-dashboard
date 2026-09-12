@@ -20,7 +20,7 @@
  */
 
 import React from 'react'
-import { Badge, CheckboxRow, color, font, radius } from '../ui/index.js'
+import { Badge, CheckboxRow, color, font } from '../ui/index.js'
 
 /**
  * Microcopy de APOIO (não é texto de pergunta — texto de pergunta vem só do schema).
@@ -56,23 +56,21 @@ export function EscapeToggle({
   if (!escape || !escape.id) return null
 
   const isAi = escape.ai === true
-  const hintId = `${escape.id}-hint`
 
+  /**
+   * UMA superfície por bloco. Antes: um contêiner tintado (borda + fundo +
+   * raio 16) envolvia a linha do checkbox (borda + raio 14) e deixava o texto
+   * de apoio solto entre os dois — dois retângulos concêntricos que liam como
+   * erro de renderização. Agora a saída é separada das opções reais por um
+   * fio de 1px (o mesmo recurso que `ProductCards` usa para a opção de menor
+   * peso) e o texto de apoio entra DENTRO da linha, como `description`.
+   */
   return (
-    <div
-      style={{
-        marginTop: '12px',
-        padding: '4px 12px 10px',
-        borderRadius: radius.lg,
-        border: `1px solid ${isAi ? color.actionTintStrong : color.border}`,
-        background: isAi ? color.actionTint : color.surfaceMuted,
-        fontFamily: font.family,
-        ...style,
-      }}
-      {...rest}
-    >
+    <div style={{ marginTop: '18px', fontFamily: font.family, ...style }} {...rest}>
+      <div aria-hidden="true" style={{ height: '1px', background: color.border, margin: '0 0 14px' }} />
+
       {isAi ? (
-        <div style={{ paddingTop: '10px' }}>
+        <div style={{ marginBottom: '10px' }}>
           <Badge tone="accent">{ESCAPE_COPY.aiBadge}</Badge>
         </div>
       ) : null}
@@ -83,28 +81,12 @@ export function EscapeToggle({
         checked={checked === true}
         disabled={disabled}
         label={escape.label}
+        description={isAi ? ESCAPE_COPY.ai : ESCAPE_COPY.plain}
         onChange={(next, event) => {
           if (onChange) onChange(next === true, event)
         }}
-        describedBy={[hintId, describedBy].filter(Boolean).join(' ') || undefined}
-        style={{
-          /* o próprio OptionRow já desenha fundo/borda: aqui só tiramos o
-             respiro duplicado para a linha encostar na moldura tintada */
-          margin: '0 -4px',
-        }}
+        describedBy={describedBy || undefined}
       />
-
-      <p
-        id={hintId}
-        style={{
-          margin: '8px 4px 0',
-          fontSize: font.size.sm,
-          lineHeight: font.leading.normal,
-          color: isAi ? color.actionText : color.muted,
-        }}
-      >
-        {isAi ? ESCAPE_COPY.ai : ESCAPE_COPY.plain}
-      </p>
     </div>
   )
 }

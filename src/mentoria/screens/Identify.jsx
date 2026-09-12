@@ -37,7 +37,7 @@ export default function Identify() {
   )
 
   return (
-    <ScreenShell footer={footer} padTop={28}>
+    <ScreenShell footer={footer} padTop={26}>
       <Eyebrow>Antes de começar</Eyebrow>
 
       <h1
@@ -63,11 +63,20 @@ export default function Identify() {
 
       <div style={{ marginTop: '28px', display: 'grid', gap: '22px' }}>
         <div data-field-anchor="name">
-          <FieldShell id="name" label="Nome completo" error={errors.name}>
+          {/* O placeholder longo ("Como você quer ser chamado no Blueprint")
+              era cortado em 390px e em 320px — virava "…no Bluepri" — e ainda
+              contradizia o rótulo "Nome completo". O contexto foi para o
+              helper, que quebra em duas linhas em vez de truncar. */}
+          <FieldShell
+            id="name"
+            label="Nome completo"
+            helper="É assim que seu nome aparece no Blueprint."
+            error={errors.name}
+          >
             <TextInput
               value={identity.name || ''}
               onChange={(value) => setIdentity({ name: value })}
-              placeholder="Como você quer ser chamado no Blueprint"
+              placeholder="Nome e sobrenome"
               autoComplete="name"
               autoCapitalize="words"
               maxLength={120}

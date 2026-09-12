@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { color, control, duration, easing, font, gradient, layout, radius, shadow } from './tokens.js'
+import { color, control, duration, easing, font, gradient, layout, radius, shadow, type } from './tokens.js'
 import {
   Icon,
   composeHandlers,
@@ -45,16 +45,7 @@ export function ProgressBar({
           }}
         >
           {label ? (
-            <span
-              style={{
-                fontSize: font.size.sm,
-                fontWeight: font.weight.semibold,
-                letterSpacing: font.tracking.normal,
-                color: color.muted,
-              }}
-            >
-              {label}
-            </span>
+            <span style={{ ...type.captionStrong, color: color.muted }}>{label}</span>
           ) : (
             <span />
           )}
@@ -62,8 +53,7 @@ export function ProgressBar({
             <span
               aria-hidden="true"
               style={{
-                fontSize: font.size.sm,
-                fontWeight: font.weight.semibold,
+                ...type.captionStrong,
                 fontVariantNumeric: 'tabular-nums',
                 color: color.actionText,
               }}
@@ -86,7 +76,11 @@ export function ProgressBar({
           width: '100%',
           height,
           borderRadius: radius.pill,
-          background: color.border,
+          background: color.surfaceSunken,
+          /* 1.4.11: o trilho sozinho dava 1.14:1 contra o fundo. O contorno
+             de 1px em `borderStrong` delimita o componente com 3.03:1 e o
+             preenchimento continua com 3.66:1 contra o interior do trilho. */
+          boxShadow: shadow.controlRing,
           overflow: 'hidden',
         }}
       >
@@ -95,6 +89,7 @@ export function ProgressBar({
             width: `${pct}%`,
             height: '100%',
             borderRadius: radius.pill,
+            /* sai do marinho e chega no azul da marca */
             background: gradient.progress,
             transition: reduced ? 'none' : `width ${duration.slow}ms ${easing.out}`,
           }}
@@ -129,10 +124,11 @@ export function IconButton({ icon, label, onClick, disabled = false, style, ...r
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: radius.md,
+        /* controle de 44px → raio sm */
+        borderRadius: radius.sm,
         borderWidth: '1px',
         borderStyle: 'solid',
-        borderColor: disabled ? color.disabledBorder : color.border,
+        borderColor: disabled ? color.disabledBorder : color.borderStrong,
         background: disabled ? color.disabledBg : pressed ? color.surfaceSunken : color.surface,
         color: disabled ? color.disabledText : color.inkSoft,
         boxShadow: focusVisible ? shadow.focus : shadow.xs,
@@ -152,7 +148,11 @@ export function IconButton({ icon, label, onClick, disabled = false, style, ...r
  * STEP HEADER
  * ====================================================================== */
 
-/** <StepHeader step total title onBack kicker right titleAs="h1" /> */
+/**
+ * <StepHeader step total title onBack kicker right titleAs="h1" tone="plain|navy" />
+ * `tone="navy"` transforma o cabeçalho na faixa marinho de abertura da etapa
+ * (branco 17.25:1, kicker #7EA6FF 7.22:1 sobre o marinho).
+ */
 export function StepHeader({
   step,
   total,
@@ -163,15 +163,33 @@ export function StepHeader({
   right,
   titleAs = 'h1',
   titleId,
+  tone = 'plain',
   style,
   ...rest
 }) {
   const Tag = titleAs
+  const onDark = tone === 'navy'
   const kickerText =
     kicker != null ? kicker : step != null && total != null ? `Etapa ${step} de ${total}` : null
 
   return (
-    <header style={{ fontFamily: font.family, ...style }} {...rest}>
+    <header
+      style={{
+        fontFamily: font.family,
+        ...(onDark
+          ? {
+              background: gradient.navy,
+              border: `1px solid ${color.navyLine}`,
+              borderRadius: radius.xl,
+              boxShadow: shadow.navy,
+              padding: '20px',
+              color: color.onDark,
+            }
+          : null),
+        ...style,
+      }}
+      {...rest}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minHeight: control.touchMin }}>
         {onBack ? <IconButton icon="chevronLeft" label={backLabel} onClick={onBack} /> : null}
         {kickerText ? (
@@ -179,11 +197,8 @@ export function StepHeader({
             style={{
               flex: '1 1 auto',
               margin: 0,
-              fontSize: font.size.xs,
-              fontWeight: font.weight.semibold,
-              letterSpacing: font.tracking.wide,
-              textTransform: 'uppercase',
-              color: color.actionText,
+              ...type.overline,
+              color: onDark ? color.actionSoft : color.actionText,
             }}
           >
             {kickerText}
@@ -198,11 +213,8 @@ export function StepHeader({
           id={titleId}
           style={{
             margin: '12px 0 0',
-            fontSize: font.size.display,
-            fontWeight: font.weight.bold,
-            letterSpacing: font.tracking.tight,
-            lineHeight: font.leading.tight,
-            color: color.ink,
+            ...type.title,
+            color: onDark ? color.onDark : color.ink,
           }}
         >
           {title}
@@ -231,7 +243,9 @@ export function StepDots({ total = 0, current = 1, onSelect, labels, style, ...r
       width: active ? 24 : 8,
       height: 8,
       borderRadius: radius.pill,
-      background: active ? color.action : done ? color.actionSoft : color.borderStrong,
+      /* concluída = marinho (o percurso feito é o peso), atual = azul da
+         marca, futura = borda de controle (3.03:1 sobre o fundo) */
+      background: active ? color.action : done ? color.navy : color.borderStrong,
       transition: transition('width, background-color', duration.base, reduced),
       display: 'block',
     }
@@ -287,7 +301,7 @@ function DotButton({ index, current, total, label, dotStyle, onSelect }) {
         justifyContent: 'center',
         border: 0,
         background: 'transparent',
-        borderRadius: radius.md,
+        borderRadius: radius.sm,
         boxShadow: focusVisible ? shadow.focus : 'none',
         padding: 0,
       }}

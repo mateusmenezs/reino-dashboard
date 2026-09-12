@@ -5,56 +5,37 @@
    `input, select { background: var(--mid); border: …gold }`. Tudo aqui é escopado
    em `.mentoria-root` (ou em `body.mentoria-page`) para que nada vaze em
    nenhuma direção. Não importe este arquivo fora do construtor.
+
+   REGRA DESTE ARQUIVO
+   -------------------
+   `src/mentoria/ui/tokens.js` é a ÚNICA fonte de verdade visual. Este arquivo
+   NÃO repete a paleta: aqui só existe o que é impossível fazer com estilo
+   inline — reset de formulário, `::placeholder`, `:focus-visible`, keyframes e
+   a preferência de movimento reduzido. Cada literal abaixo está anotado com o
+   token que ele espelha e precisa continuar idêntico a ele.
+
+   (Havia um bloco `:root` de 30 variáveis "espelhando tokens.js" que não
+   espelhava: acento, sucesso, perigo, raio e quatro sombras divergiam, e o anel
+   de foco era desenhado com uma cor que não era a do token. Foi removido.)
    ========================================================================== */
 
 body.mentoria-page {
-  background: #f4f6fa;
-  color: #0a1b33;
+  background: #f4f6fa; /* = color.bg */
+  color: #0a1b33; /* = color.ink */
   /* Evita o "rubber band" branco/escuro no iOS ao passar do fim da página. */
   overscroll-behavior-y: none;
 }
 
 .boot-fallback {
   min-height: 100vh;
-  background: #f4f6fa;
+  background: #f4f6fa; /* = color.bg */
 }
 
 .mentoria-root {
-  /* ---- Tokens (espelham src/mentoria/ui/tokens.js) ---- */
-  --m-navy: #0a1b33;
-  --m-navy-soft: #1c2f4d;
-  --m-ink: #0a1b33;
-  --m-ink-2: #3d4f6b;
-  --m-ink-3: #6b7a92;
-  --m-accent: #2f6bff;
-  --m-accent-strong: #1e50d4;
-  --m-accent-soft: #7ea6ff;
-  --m-accent-tint: #eaf0ff;
-  --m-bg: #f4f6fa;
-  --m-surface: #ffffff;
-  --m-border: #e3e8f0;
-  --m-border-strong: #cfd8e6;
-  --m-success: #0f8a5f;
-  --m-success-tint: #e6f6ef;
-  --m-danger: #c0392b;
-  --m-danger-tint: #fdeeec;
-
-  --m-radius-sm: 10px;
-  --m-radius: 14px;
-  --m-radius-lg: 18px;
-
-  --m-shadow-xs: 0 1px 2px rgba(10, 27, 51, 0.04);
-  --m-shadow-sm: 0 2px 8px rgba(10, 27, 51, 0.05);
-  --m-shadow-md: 0 8px 24px rgba(10, 27, 51, 0.07);
-  --m-shadow-lg: 0 18px 48px rgba(10, 27, 51, 0.1);
-
-  --m-dur-fast: 140ms;
-  --m-dur: 200ms;
-  --m-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-
   min-height: 100dvh;
-  background: var(--m-bg);
-  color: var(--m-ink);
+  background: #f4f6fa; /* = color.bg */
+  color: #0a1b33; /* = color.ink */
+  /* = font.family */
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -78,7 +59,7 @@ body.mentoria-page {
 }
 
 /* 16px é regra de sobrevivência: abaixo disso o Safari iOS dá zoom ao focar
-   e desmonta o layout no meio da palestra. */
+   e desmonta o layout no meio da palestra. (= font.size.input) */
 .mentoria-root input,
 .mentoria-root textarea,
 .mentoria-root select {
@@ -89,11 +70,12 @@ body.mentoria-page {
 
 .mentoria-root textarea {
   line-height: 1.55;
-  resize: vertical;
 }
 
+/* Pseudo-elemento: inalcançável por estilo inline, por isso mora aqui.
+   #667790 = color.placeholder = 4.56:1 sobre branco. Não depende do Tailwind. */
 .mentoria-root ::placeholder {
-  color: #9aa7bd;
+  color: #667790;
   opacity: 1;
 }
 
@@ -106,54 +88,49 @@ body.mentoria-page {
   touch-action: manipulation;
 }
 
+/* #2f6bff = color.action / color.borderFocus — EXATAMENTE o token. */
 .mentoria-root :focus-visible {
-  outline: 2px solid var(--m-accent);
+  outline: 2px solid #2f6bff;
   outline-offset: 2px;
   border-radius: 6px;
 }
 
 /* ---- Movimento ----------------------------------------------------------- */
-@keyframes m-fade-up {
-  from { opacity: 0; transform: translate3d(0, 8px, 0); }
-  to   { opacity: 1; transform: none; }
-}
-@keyframes m-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
+/* `m-pop` é a microcelebração das telas de fim de etapa e de sucesso.
+   Todo o resto do movimento do app é resolvido em JS pelas primitivas. */
 @keyframes m-pop {
   0%   { opacity: 0; transform: scale(0.9); }
   60%  { transform: scale(1.03); }
   100% { opacity: 1; transform: scale(1); }
 }
-@keyframes m-spin { to { transform: rotate(360deg); } }
-@keyframes m-shimmer {
-  0%   { background-position: -180% 0; }
-  100% { background-position: 180% 0; }
-}
-@keyframes m-breathe {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.55; }
+
+.m-pop {
+  animation: m-pop 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both; /* = easing.standard */
 }
 
-.m-reveal { animation: m-fade-up var(--m-dur) var(--m-ease) both; }
-.m-fade   { animation: m-fade-in var(--m-dur) var(--m-ease) both; }
-.m-pop    { animation: m-pop 380ms var(--m-ease) both; }
-.m-spin   { animation: m-spin 700ms linear infinite; }
-.m-breathe { animation: m-breathe 2.2s ease-in-out infinite; }
-.m-shimmer {
+/* Varredura de brilho do CTA enquanto o briefing está sendo enviado.
+   O botão continua marinho: apagar a marca no meio do POST é o que faz a
+   pessoa achar que travou. Só decoração — o estado real é `aria-busy`. */
+@keyframes m-btn-shimmer {
+  0%   { transform: translate3d(-120%, 0, 0); }
+  100% { transform: translate3d(120%, 0, 0); }
+}
+
+.m-btn-shimmer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 60%;
+  pointer-events: none;
   background-image: linear-gradient(
     100deg,
-    transparent 20%,
-    rgba(47, 107, 255, 0.12) 45%,
-    transparent 70%
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0) 100%
   );
-  background-size: 220% 100%;
-  animation: m-shimmer 2.4s linear infinite;
+  animation: m-btn-shimmer 1.6s linear infinite;
 }
-
-.m-press { transition: transform var(--m-dur-fast) var(--m-ease); }
-.m-press:active:not(:disabled) { transform: scale(0.98); }
 
 @media (prefers-reduced-motion: reduce) {
   .mentoria-root *,
@@ -166,32 +143,54 @@ body.mentoria-page {
   }
 }
 
-/* ---- Utilidades de layout mobile ---------------------------------------- */
-.m-safe-bottom { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
-.m-safe-top { padding-top: env(safe-area-inset-top, 0px); }
+/* ---- Diagrama encadeado (Etapa 3) ---------------------------------------
+   O layout mora em CSS porque depende de media query: estilo inline não tem
+   como perguntar a largura da tela. As cores continuam vindo dos tokens, em
+   estilo inline, no próprio componente.
 
-/* Barra de CTA fixa: sticky em vez de fixed para que o teclado do iOS empurre
-   o conteúdo em vez de cobrir o botão. */
-.m-bottombar {
-  position: sticky;
-  bottom: 0;
-  z-index: 20;
-  background: linear-gradient(
-    to bottom,
-    rgba(244, 246, 250, 0) 0%,
-    rgba(244, 246, 250, 0.92) 28%,
-    #f4f6fa 60%
-  );
-  padding-top: 14px;
-  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+   Padrão mobile: coluna. Cada nó ocupa a largura toda e a seta aponta PARA
+   BAIXO, entre um nó e o seguinte — nunca sobra seta apontando para o vazio.
+   A partir de 660px (onde a coluna de 640px cabe inteira) vira uma linha. */
+.m-chain {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 
-.m-scroll-x {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+.m-chain__item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
 }
-.m-scroll-x::-webkit-scrollbar { display: none; }
+
+.m-chain__arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+@media (min-width: 660px) {
+  .m-chain {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  .m-chain__item {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  /* na horizontal a seta volta a apontar para a direita */
+  .m-chain__arrow {
+    transform: rotate(-90deg);
+  }
+}
 
 /* Rolagem até um campo com erro sem encostar no topo da tela. */
 .mentoria-root [data-field-anchor] { scroll-margin-top: 96px; scroll-margin-bottom: 140px; }

@@ -18,7 +18,7 @@ export default function Success() {
   const masked = maskForDisplay(identity.whatsapp || '')
 
   return (
-    <ScreenShell padTop={56} padBottom={48}>
+    <ScreenShell center padTop={40} padBottom={40}>
       <div style={{ textAlign: 'center' }}>
         <span
           className="m-pop"

@@ -69,7 +69,7 @@ export default function StepIntro() {
   )
 
   return (
-    <ScreenShell footer={footer} padTop={32} padBottom={32}>
+    <ScreenShell footer={footer} center padTop={28} padBottom={32}>
       <Reveal>
         <div
           style={{
