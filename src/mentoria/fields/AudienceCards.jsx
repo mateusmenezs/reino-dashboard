@@ -170,11 +170,24 @@ export function AudienceCards({
   const tied = comparable && leaders.length > 1 ? leaders.map((r) => r.audience.value) : []
 
   /* ------------------------------------------------- público em foco */
+  /**
+   * Qual cartão abre ao entrar (ou ao reabrir a página):
+   *   1. o público OBRIGATÓRIO que ainda está incompleto — é o que trava o
+   *      avanço, então é o que precisa estar à vista;
+   *   2. senão, o primeiro que JÁ TEM descrição — quem recarrega a página no
+   *      meio da tela volta vendo o que escreveu, não um cartão em branco;
+   *   3. senão, o primeiro da lista.
+   * Só semeia o estado inicial: completar um cartão não fecha nada por conta
+   * própria, e a pessoa continua mandando na navegação.
+   */
   const firstOpen = useMemo(() => {
-    const pending = rows.find((r) => !r.complete)
-    const target = pending || rows[0]
+    const obrigatorioPendente = rows.find(
+      (r) => requiredAudiences.includes(r.audience.value) && !r.complete,
+    )
+    const comTexto = rows.find((r) => r.described)
+    const target = obrigatorioPendente || comTexto || rows[0]
     return target ? target.audience.value : null
-  }, [rows])
+  }, [rows, requiredAudiences])
 
   const [openId, setOpenId] = useState(firstOpen)
 

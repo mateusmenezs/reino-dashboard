@@ -1,6 +1,5 @@
 import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
-import './index.css'
 
 /**
  * Roteamento mínimo, sem dependência de router.
@@ -15,6 +14,9 @@ const isMentoriaRoute = () => {
   return path === '/mentoria' || path.startsWith('/mentoria/')
 }
 
+// index.css (Tailwind + tema navy/dourado) é importado DENTRO de App.jsx, não
+// aqui: o construtor não usa nenhuma classe utilitária, e mantê-lo global fazia
+// o participante baixar ~4,5 KB gzip de estilo que ele nunca aplica.
 const Dashboard = lazy(() => import('./App.jsx'))
 const MentoriaApp = lazy(() => import('./mentoria/MentoriaApp.jsx'))
 

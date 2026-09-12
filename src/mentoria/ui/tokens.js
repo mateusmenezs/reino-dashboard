@@ -64,10 +64,12 @@ export const color = {
 
   /* Bordas ---------------------------------------------------------- */
   // `border` é divisória decorativa (1.4.11 não se aplica).
-  // `borderStrong` delimita CONTROLE (campo, opção, chip, nota, trilho) e
-  // por isso passa de 3:1 contra branco (3.27:1) e contra o fundo (3.03:1).
+  // `borderStrong` delimita CONTROLE (campo, opção, chip, nota, trilho) e por
+  // isso passa de 3:1 contra TODAS as superfícies claras do app:
+  //   branco 3.45:1 · bg 3.19:1 · surfaceMuted 3.27:1 · surfaceSunken 3.10:1
+  // (era #C8D2E0 = 1.53:1 no branco e 1.41:1 no fundo — reprovava 1.4.11).
   border: '#E3E8F0',
-  borderStrong: '#828FA4',
+  borderStrong: '#7E8B9F',
   borderFocus: '#2F6BFF',
 
   /* Semânticas ------------------------------------------------------ */
@@ -141,11 +143,14 @@ export const shadow = {
   /** Superfície marinho: a sombra é mais profunda porque a peça é pesada. */
   navy: '0 2px 6px rgba(10, 27, 51, 0.14), 0 14px 34px rgba(10, 27, 51, 0.16)',
   bar: '0 -1px 0 rgba(10, 27, 51, 0.06), 0 -8px 24px rgba(10, 27, 51, 0.05)',
-  /* Anel de foco: 3px de halo azul. Substitui o `outline: none` global.
+  /* Anel de foco em DUAS camadas: 2px da cor da superfície separando o
+     controle e 2px de azul SÓLIDO por fora. Substitui o `outline: none`
+     global e garante 3:1 contra qualquer vizinho (azul 4.50:1 sobre branco,
+     4.16:1 sobre o fundo; sobre o CTA marinho o anel branco faz a separação).
      `mentoria.css` repete EXATAMENTE #2F6BFF no `:focus-visible`. */
-  focus: `0 0 0 3px rgba(47, 107, 255, 0.28)`,
-  focusDanger: `0 0 0 3px rgba(180, 35, 24, 0.24)`,
-  focusOnDark: `0 0 0 3px rgba(126, 166, 255, 0.45)`,
+  focus: `0 0 0 2px ${color.surface}, 0 0 0 4px ${color.action}`,
+  focusDanger: `0 0 0 2px ${color.surface}, 0 0 0 4px ${color.danger}`,
+  focusOnDark: `0 0 0 2px ${color.navy}, 0 0 0 4px ${color.actionSoft}`,
   insetSelected: `inset 0 0 0 2px ${color.action}`,
   /** Contorno de controle sobre fundo claro (1.4.11 — 3.03:1 sobre o bg). */
   controlRing: `inset 0 0 0 1px ${color.borderStrong}`,

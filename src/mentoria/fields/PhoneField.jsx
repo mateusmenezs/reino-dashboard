@@ -20,7 +20,13 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { TextInput } from '../ui/index.js'
-import { formatPhoneBR, onlyDigits, toLocalDigits } from '../state/phone.js'
+import {
+  compactPhoneInput,
+  formatPhoneBR,
+  hasForeignCountryCode,
+  onlyDigits,
+  toLocalDigits,
+} from '../state/phone.js'
 
 /* O app é 100% client-side (Vite), mas `useLayoutEffect` avisa em render de
    servidor. Mesmo padrão já usado pelo design system. */
@@ -78,6 +84,18 @@ export function PhoneField({
       const raw = String(rawValue == null ? '' : rawValue)
       const previous = String(value == null ? '' : value)
 
+      /* NÚMERO DE OUTRO PAÍS: decidir ANTES da máscara.
+         `toLocalDigits` come o "+", então "+54 9 11 1234-5678" chegava aqui
+         como dígitos soltos, `formatPhoneBR` devolvia "" e o campo ficava
+         VAZIO — a pessoa via sumir o que acabou de colar e a tela repetia o
+         genérico "Precisamos do seu WhatsApp". Devolvendo a entrada compacta,
+         ela continua vendo o que colou e a validação explica o motivo certo. */
+      if (hasForeignCountryCode(raw)) {
+        caretDigits.current = null
+        if (onChange) onChange(compactPhoneInput(raw), event)
+        return
+      }
+
       const selection = input && typeof input.selectionStart === 'number'
         ? input.selectionStart
         : raw.length
@@ -134,7 +152,11 @@ export function PhoneField({
       disabled={disabled}
       placeholder={placeholder}
       describedBy={describedBy}
-      maxLength={16}
+      /* 16 cortava a colagem: "+55 11 91234-5678" tem 17 caracteres e o último
+         dígito era descartado em silêncio — o número virava "(11) 9123-4567",
+         plausível na tela e inexistente no WhatsApp. O teto agora só existe
+         para conter colagem absurda; quem decide o formato é a normalização. */
+      maxLength={24}
       style={style}
       {...rest}
     />

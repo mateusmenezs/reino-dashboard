@@ -408,6 +408,11 @@ export default function Review() {
   const noticeRef = useRef(null)
 
   const sending = submission.status === 'sending'
+  /* O store marca `waiting_long` quando o POST passa de ~6s. No 4G de salão de
+     evento, seis segundos de botão cinza e imóvel é exatamente o momento em que
+     a pessoa acha que travou e volta a tocar. Uma linha reconhecendo a espera
+     custa nada e evita o segundo toque. */
+  const waitingLong = sending && submission.waiting_long === true
 
   const summary = useMemo(
     () => STEPS.map((step) => ({ step, counts: countStep(step, answers) })),
@@ -499,7 +504,11 @@ export default function Review() {
           color: color.muted,
         }}
       >
-        {sending ? 'Enviando seu briefing. Não feche esta tela.' : 'Suas respostas já estão salvas.'}
+        {waitingLong
+          ? 'Ainda estamos enviando. Não feche esta tela.'
+          : sending
+            ? 'Enviando seu briefing. Não feche esta tela.'
+            : 'Suas respostas já estão salvas.'}
       </p>
       <BarRow>
         <Button
@@ -511,7 +520,11 @@ export default function Review() {
           disabled={sending}
           style={wrapCta}
         >
-          {sending ? 'ENVIANDO…' : 'CRIAR MINHA MENTORIA COM IA →'}
+          {sending
+            ? waitingLong
+              ? 'AINDA ENVIANDO…'
+              : 'ENVIANDO…'
+            : 'CRIAR MINHA MENTORIA COM IA →'}
         </Button>
       </BarRow>
     </div>

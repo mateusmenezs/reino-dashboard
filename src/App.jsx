@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import './index.css'
 import { EVENTS } from './data/events.js'
 import { calcMetrics } from './data/metrics.js'
 import { brl, brlCents, pct, roi, num } from './data/format.js'

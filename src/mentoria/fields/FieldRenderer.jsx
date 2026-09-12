@@ -312,7 +312,8 @@ function MultiSelect({ id, field, value, onChange, options, disabled, labelledBy
 
 function RadioWithEscapes({ field, groupId, value, options, onChange, disabled, describedBy }) {
   const { primary, deferred } = splitOptions(field, options)
-  const deferredLabelId = `${field.id}-saidas`
+  const deferredGroupId = `${field.id}__saidas`
+  const deferredLabelId = `${deferredGroupId}-label`
 
   if (deferred.length === 0) {
     return (
@@ -344,7 +345,10 @@ function RadioWithEscapes({ field, groupId, value, options, onChange, disabled, 
         {RENDERER_COPY.deferredGroup}
       </span>
       <RadioGroup
-        name={`${field.id}__saidas`}
+        /* id explícito: sem ele o `RadioGroup` cai no id do FieldShell e a
+           página passa a ter DOIS elementos com o id da pergunta. */
+        id={deferredGroupId}
+        name={deferredGroupId}
         value={asText(value)}
         onChange={(next) => onChange && onChange(next)}
         options={deferred}

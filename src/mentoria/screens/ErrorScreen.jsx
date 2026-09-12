@@ -29,6 +29,9 @@ export default function ErrorScreen() {
   const busyRef = useRef(false)
 
   const sending = submission.status === 'sending'
+  /* Mesma espera longa da revisão: a segunda tentativa costuma ser a mais
+     lenta, e é nela que a pessoa mais duvida que algo esteja acontecendo. */
+  const waitingLong = sending && submission.waiting_long === true
   const info = submission.error || null
   const retryable = !info || info.retryable !== false
 
@@ -51,11 +54,13 @@ export default function ErrorScreen() {
           color: color.muted,
         }}
       >
-        {sending
-          ? 'Enviando de novo. Não feche esta tela.'
-          : retryable
-            ? 'Nada foi perdido. Podemos tentar quantas vezes precisar.'
-            : 'Mostre esta tela para a equipe do evento — eles destravam o envio.'}
+        {waitingLong
+          ? 'Ainda estamos enviando. Não feche esta tela.'
+          : sending
+            ? 'Enviando de novo. Não feche esta tela.'
+            : retryable
+              ? 'Nada foi perdido. Podemos tentar quantas vezes precisar.'
+              : 'Mostre esta tela para a equipe do evento — eles destravam o envio.'}
       </p>
       <BarRow>
         <Button variant="secondary" onClick={back} aria-label="Voltar para a revisão">
@@ -69,7 +74,7 @@ export default function ErrorScreen() {
           disabled={sending}
           style={{ ...wrapCta, flex: '1 1 auto' }}
         >
-          {sending ? 'ENVIANDO…' : 'TENTAR NOVAMENTE'}
+          {sending ? (waitingLong ? 'AINDA ENVIANDO…' : 'ENVIANDO…') : 'TENTAR NOVAMENTE'}
         </Button>
       </BarRow>
     </div>
