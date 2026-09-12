@@ -3,7 +3,7 @@
  * Dono: AGENTE E.
  *
  * Contrato com o Agente F:
- *   <FieldRenderer field value answers error onChange onEscapeChange />
+ *   <FieldRenderer field value answers error onChange onAnswerChange />
  *
  * Regras desta tela:
  * - avanço SEMPRE passa por `tryNext()` do store (valida antes de navegar);
@@ -53,8 +53,12 @@ export default function StepScreen() {
     if (!res.ok && res.firstErrorId) focusField(res.firstErrorId)
   }, [tryNext])
 
-  const handleEscapeChange = useCallback(
-    (id, checked) => setAnswer(id, checked),
+  /* Setter genérico do FieldRenderer: grava chaves que NÃO são a do campo —
+     a da saída "ainda não sei" (field.escape.id) e a do complemento de
+     "Outro" (otherOption.placeholderFieldId). Passar `onEscapeChange` aqui
+     seria errado: aquele callback recebe (checked, event), não (id, valor). */
+  const handleAnswerChange = useCallback(
+    (id, value) => setAnswer(id, value),
     [setAnswer],
   )
 
@@ -174,7 +178,7 @@ export default function StepScreen() {
               answers={answers}
               error={errors[field.id]}
               onChange={(value) => setAnswer(field.id, value)}
-              onEscapeChange={handleEscapeChange}
+              onAnswerChange={handleAnswerChange}
             />
           </div>
         ))}
